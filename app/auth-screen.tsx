@@ -3,19 +3,23 @@
 import { Apple, ArrowLeft, LoaderCircle } from "lucide-react";
 import { useSignIn, useSignUp, useUser } from "@clerk/nextjs";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { useAuthConfigured } from "./auth-provider";
 
 type Mode = "login" | "create";
 type Strategy = "oauth_google" | "oauth_apple";
 
-function OAuthForm({ mode }: { mode: Mode }) {
-  const { isLoaded: signInLoaded, signIn } = useSignIn();
-  const { isLoaded: signUpLoaded, signUp } = useSignUp();
+function OAuthForm({ mode, returnTo }: { mode: Mode; returnTo: string }) {
+  const { signIn, fetchStatus: signInStatus } = useSignIn();
+  const { signUp, fetchStatus: signUpStatus } = useSignUp();
   const { isLoaded: userLoaded, isSignedIn, user } = useUser();
   const [pending, setPending] = useState<Strategy | null>(null);
   const [error, setError] = useState("");
-  const loaded = mode === "login" ? signInLoaded : signUpLoaded;
+  const loaded =
+    mode === "login"
+      ? Boolean(signIn) && signInStatus === "idle"
+      : Boolean(signUp) && signUpStatus === "idle";
 
   async function continueWith(strategy: Strategy) {
     if (!loaded) return;
@@ -24,13 +28,13 @@ function OAuthForm({ mode }: { mode: Mode }) {
     try {
       const params = {
         strategy,
-        redirectUrl: "/sso-callback",
-        redirectUrlComplete: "/",
+        redirectUrl: returnTo,
+        redirectCallbackUrl: "/sso-callback",
       } as const;
       if (mode === "login") {
-        await signIn.authenticateWithRedirect(params);
+        await signIn.sso(params);
       } else {
-        await signUp.authenticateWithRedirect({ ...params, legalAccepted: true });
+        await signUp.sso({ ...params, legalAccepted: true });
       }
     } catch {
       setPending(null);
@@ -85,6 +89,12 @@ function OAuthForm({ mode }: { mode: Mode }) {
 
 export function AuthScreen({ mode }: { mode: Mode }) {
   const configured = useAuthConfigured();
+  const searchParams = useSearchParams();
+  const requestedReturnTo = searchParams.get("returnTo") || "/";
+  const returnTo =
+    requestedReturnTo.startsWith("/") && !requestedReturnTo.startsWith("//")
+      ? requestedReturnTo
+      : "/";
   const creating = mode === "create";
 
   return (
@@ -107,7 +117,7 @@ export function AuthScreen({ mode }: { mode: Mode }) {
 
         <div className="sso-stack">
           {configured ? (
-            <OAuthForm mode={mode} />
+            <OAuthForm mode={mode} returnTo={returnTo} />
           ) : (
             <>
               <button className="sso-button google" type="button" disabled>

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { SiteNavigation } from "./site-navigation";
 
 type ProbeResult = {
@@ -27,6 +28,7 @@ const projects = [
     copy: "Image-guided motion studies and practical generative-video pipelines.",
     tags: ["Modal GPU", "Creative tooling"],
     tone: "orange",
+    href: "/experiments/ai-video",
   },
   {
     number: "03",
@@ -122,6 +124,11 @@ export default function Home() {
               <div className="tags">
                 {project.tags.map((tag) => <span key={tag}>{tag}</span>)}
               </div>
+              {project.href && (
+                <Link className="project-launch" href={project.href}>
+                  Open AI Video <span>→</span>
+                </Link>
+              )}
             </article>
           ))}
         </div>

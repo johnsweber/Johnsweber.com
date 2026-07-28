@@ -48,3 +48,28 @@ CLERK_SECRET_KEY=sk_test_replace_me
 
 Keep real credentials in local environment files or encrypted Cloudflare
 Worker secrets. Never commit them to the repository.
+
+## AI Video experiment
+
+`/experiments/ai-video` is an authenticated, private generation workspace.
+Clerk supplies identity, D1 stores user-owned job metadata, and the `MEDIA` R2
+binding stores source images and completed MP4 files. Every API and media route
+verifies the Clerk bearer token and scopes records to the token subject.
+
+Experiment data is intentionally isolated:
+
+- `shared_user_profiles` contains reusable account display metadata.
+- `experiment_catalog` reserves a unique API namespace for each experiment.
+- `ai_video_jobs` belongs only to the AI Video experiment.
+- R2 object keys are namespaced by experiment and Clerk user ID.
+
+The deployed Modal model services require:
+
+- `WAN22_MODAL_URL`
+- `LTX23_MODAL_URL`
+- `MODAL_PROXY_TOKEN_ID`
+- `MODAL_PROXY_TOKEN_SECRET`
+
+Wan 2.2 supports image-to-video at 480p or 720p for approximately 5 or
+10 seconds. LTX 2.3 supports text-to-video with synchronized audio at
+768×512 or 1280×768 for approximately 5 or 10 seconds.

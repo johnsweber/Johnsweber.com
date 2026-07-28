@@ -58,3 +58,13 @@ test("renders signed-out user management", async () => {
   assert.match(html, /Your account space is ready/);
   assert.match(html, /View login/);
 });
+
+test("renders the protected AI Video experiment gate", async () => {
+  const response = await render("/experiments/ai-video");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /AI VIDEO/);
+  assert.match(html, /AI Video is ready for authentication/);
+  assert.doesNotMatch(html, /source images, generations, and library stay attached/i);
+});

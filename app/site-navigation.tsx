@@ -20,7 +20,7 @@ const navItems = [
   { label: "Home", detail: "The starting point", href: "#top", icon: House },
   { label: "Work", detail: "Projects and directions", href: "#work", icon: Sparkles },
   { label: "Live lab", detail: "Edge-to-GPU experiments", href: "#lab", icon: FlaskConical },
-  { label: "Video workflows", detail: "Generative motion studies", href: "#work", icon: Video },
+  { label: "AI Video", detail: "Private generative video lab", href: "/experiments/ai-video", icon: Video },
 ];
 
 function MenuShell({
@@ -85,15 +85,26 @@ function MenuShell({
               <h2>Pick a direction.</h2>
             </div>
             <div className="icon-nav-grid">
-              {navItems.map(({ label, detail, href, icon: Icon }) => (
-                <a key={`${label}-${href}`} href={href} onClick={() => setOpen(false)}>
+              {navItems.map(({ label, detail, href, icon: Icon }) => {
+                const content = (
+                  <>
                   <span className="icon-nav-mark">
                     <Icon size={25} aria-hidden="true" />
                   </span>
                   <strong>{label}</strong>
                   <small>{detail}</small>
-                </a>
-              ))}
+                  </>
+                );
+                return href.startsWith("/") ? (
+                  <Link key={`${label}-${href}`} href={href} onClick={() => setOpen(false)}>
+                    {content}
+                  </Link>
+                ) : (
+                  <a key={`${label}-${href}`} href={href} onClick={() => setOpen(false)}>
+                    {content}
+                  </a>
+                );
+              })}
               {accountItem}
             </div>
           </section>
