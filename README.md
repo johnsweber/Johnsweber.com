@@ -34,3 +34,17 @@ The Worker expects these encrypted runtime secrets:
 - `MODAL_PROXY_TOKEN_SECRET`
 
 The Modal service itself is defined in `modal_app.py`.
+
+## Authentication
+
+The navigation and account screens use Clerk with Google and Apple SSO. Copy
+`.env.example` to `.env.local` and replace the placeholders with credentials
+from the Clerk application:
+
+```bash
+NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY=pk_test_replace_me
+CLERK_SECRET_KEY=sk_test_replace_me
+```
+
+Keep real credentials in local environment files or encrypted Cloudflare
+Worker secrets. Never commit them to the repository.

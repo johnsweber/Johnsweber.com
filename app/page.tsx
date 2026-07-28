@@ -1,15 +1,42 @@
 "use client";
 
 import { useState } from "react";
+import { SiteNavigation } from "./site-navigation";
 
 type ProbeResult = {
   ok?: boolean;
-  configured?: boolean;
   gpu?: string;
   memory_mb?: string;
   message?: string;
   error?: string;
 };
+
+const projects = [
+  {
+    number: "01",
+    label: "ACTIVE SYSTEM",
+    title: "AI Playground",
+    copy: "Small, useful experiments that make advanced models tangible, testable, and easy to understand.",
+    tags: ["Applied AI", "Rapid prototypes", "Clear interfaces"],
+    tone: "blue",
+  },
+  {
+    number: "02",
+    label: "IN THE LAB",
+    title: "Video workflows",
+    copy: "Image-guided motion studies and practical generative-video pipelines.",
+    tags: ["Modal GPU", "Creative tooling"],
+    tone: "orange",
+  },
+  {
+    number: "03",
+    label: "ALWAYS GROWING",
+    title: "Tiny tools",
+    copy: "Focused utilities that turn recurring friction into one confident action.",
+    tags: ["Product thinking", "Useful by design"],
+    tone: "violet",
+  },
+];
 
 export default function Home() {
   const [probe, setProbe] = useState<ProbeResult | null>(null);
@@ -18,11 +45,9 @@ export default function Home() {
   async function runGpuProbe() {
     setRunning(true);
     setProbe(null);
-
     try {
       const response = await fetch("/api/gpu-status", { method: "POST" });
-      const data = (await response.json()) as ProbeResult;
-      setProbe(data);
+      setProbe((await response.json()) as ProbeResult);
     } catch {
       setProbe({ error: "The GPU gateway could not be reached." });
     } finally {
@@ -31,155 +56,134 @@ export default function Home() {
   }
 
   return (
-    <main>
-      <nav className="nav">
-        <a className="wordmark" href="#top" aria-label="John Weber home">
-          JW<span>°</span>
-        </a>
-        <div className="nav-links">
-          <a href="#work">Work</a>
-          <a href="#playground">Playground</a>
-          <a href="#about">About</a>
-        </div>
-        <span className="availability">Open to interesting problems</span>
-      </nav>
+    <main id="top">
+      <SiteNavigation />
 
-      <section className="hero" id="top">
-        <div className="eyebrow">
-          <span className="pulse" />
-          JOHN WEBER · WASHINGTON, DC
-        </div>
-        <h1>
-          I build systems that make ideas <em>feel real.</em>
-        </h1>
-        <div className="hero-bottom">
+      <section className="hero">
+        <div className="hero-copy">
+          <div className="eyebrow">
+            <span className="signal" />
+            JOHN WEBER · WASHINGTON, DC
+          </div>
+          <h1>I make complex technology <em>feel clear.</em></h1>
           <p>
-            A personal site, living portfolio, and public workshop for small
-            tools, ambitious experiments, and applied AI.
+            Product thinker, builder, and AI tinkerer turning ambitious ideas
+            into friendly interfaces and working systems.
           </p>
-          <a className="primary-link" href="#playground">
-            Enter the playground <span>↘</span>
-          </a>
+          <div className="hero-actions">
+            <a className="button button-primary" href="#work">
+              Explore the work <span>↓</span>
+            </a>
+            <a className="button button-secondary" href="#lab">
+              Run a live experiment
+            </a>
+          </div>
         </div>
-        <div className="orbit" aria-hidden="true">
-          <span>01</span>
-          <span>BUILD</span>
-          <span>TEST</span>
-          <span>SHIP</span>
+
+        <div className="hero-lab" aria-label="A visual map of John Weber's work">
+          <div className="portrait-card">
+            <img src="/john-portrait.png" alt="AI-realistic portrait of John Weber" />
+            <span>CURIOUS BUILDER</span>
+          </div>
+          <div className="network-card" aria-hidden="true">
+            <div className="network-layer"><i /><i /><i /></div>
+            <div className="network-core">AI</div>
+            <div className="network-layer"><i /><i /><i /></div>
+          </div>
+          <div className="dog-card">
+            <img src="/dog-original.jpg" alt="John's dog sitting outside in Washington, DC" />
+            <span>CHIEF WALK OFFICER</span>
+          </div>
+          <div className="data-card" aria-hidden="true">
+            <span>IDEA</span><b>→</b><span>MODEL</span><b>→</b><span>USEFUL</span>
+          </div>
+          <div className="color-dots" aria-hidden="true"><i /><i /><i /><i /></div>
         </div>
       </section>
 
-      <section className="section" id="work">
-        <div className="section-label">Selected directions</div>
+      <section className="principles" aria-label="Working principles">
+        <div><span>01</span><strong>Bright</strong><p>Optimistic technology with room to breathe.</p></div>
+        <div><span>02</span><strong>Intelligent</strong><p>Real technical depth, thoughtfully explained.</p></div>
+        <div><span>03</span><strong>Useful</strong><p>Every experiment points toward a human need.</p></div>
+      </section>
+
+      <section className="section work" id="work">
+        <div className="section-heading">
+          <div className="section-label">SELECTED DIRECTIONS</div>
+          <h2>Ideas become clearer when you can touch them.</h2>
+        </div>
         <div className="project-grid">
-          <article className="project project-featured">
-            <div className="project-number">01 / NOW</div>
-            <h2>Vibe projects, with the wiring exposed.</h2>
-            <p>
-              Fast prototypes that are useful, surprising, and honest about
-              what is happening under the hood.
-            </p>
-            <div className="project-meta">
-              <span>Cloudflare edge</span>
-              <span>Modal GPU</span>
-              <span>Open experiments</span>
-            </div>
-          </article>
-          <article className="project">
-            <div className="project-number">02 / NEXT</div>
-            <h3>Video Lab</h3>
-            <p>Image-guided motion studies and generative video workflows.</p>
-            <span className="status">In the workshop</span>
-          </article>
-          <article className="project">
-            <div className="project-number">03 / ALWAYS</div>
-            <h3>Tiny Tools</h3>
-            <p>Focused utilities that turn recurring friction into a button.</p>
-            <span className="status">Growing collection</span>
-          </article>
+          {projects.map((project) => (
+            <article className={`project ${project.tone}`} key={project.number}>
+              <div className="project-top"><span>{project.number}</span><small>{project.label}</small></div>
+              <div className="project-visual" aria-hidden="true"><i /><i /><i /><i /></div>
+              <h3>{project.title}</h3>
+              <p>{project.copy}</p>
+              <div className="tags">
+                {project.tags.map((tag) => <span key={tag}>{tag}</span>)}
+              </div>
+            </article>
+          ))}
         </div>
       </section>
 
-      <section className="playground section" id="playground">
-        <div>
-          <div className="section-label">Live infrastructure demo</div>
+      <section className="section lab" id="lab">
+        <div className="lab-copy">
+          <div className="section-label">LIVE INFRASTRUCTURE DEMO</div>
           <h2>One click from the edge to an H100.</h2>
-          <p className="playground-copy">
-            This request travels through the site&apos;s private gateway to a
-            protected Modal function. The GPU scales down when idle.
+          <p>
+            This request travels through a private gateway to a protected Modal
+            function. The GPU scales down when idle—serious infrastructure,
+            made understandable.
           </p>
+          <div className="route" aria-label="Request route">
+            <span>YOU</span><b>→</b><span>EDGE</span><b>→</b><span>H100</span>
+          </div>
         </div>
 
-        <div className="terminal-card">
-          <div className="terminal-top">
+        <div className="probe-card">
+          <div className="probe-top">
             <span>GPU PULSE</span>
-            <span className="terminal-state">
-              <i />
-              ON DEMAND
-            </span>
+            <span className="online"><i />ON DEMAND</span>
           </div>
-          <div className="terminal-body">
-            <div className="route">
-              <span>johnsweber.com</span>
-              <b>→</b>
-              <span>private gateway</span>
-              <b>→</b>
-              <span>Modal H100</span>
-            </div>
-            <button
-              className="probe-button"
-              type="button"
-              onClick={runGpuProbe}
-              disabled={running}
-            >
-              {running ? "Waking GPU…" : "Run GPU probe"}
-            </button>
-            <div className="probe-output" aria-live="polite">
-              {!probe && !running && (
-                <span>Idle. No GPU compute is running.</span>
-              )}
-              {running && <span>Cold starts can take a moment…</span>}
-              {probe?.ok && (
-                <>
-                  <strong>{probe.gpu ?? "GPU online"}</strong>
-                  <span>
-                    {probe.memory_mb
-                      ? `${probe.memory_mb} MB memory · Modal response verified`
-                      : "Modal response verified"}
-                  </span>
-                </>
-              )}
-              {probe && !probe.ok && (
-                <span>
-                  {probe.message ??
-                    probe.error ??
-                    "The GPU probe is not connected yet."}
-                </span>
-              )}
-            </div>
+          <div className="probe-visual" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div>
+          <button className="probe-button" type="button" onClick={runGpuProbe} disabled={running}>
+            {running ? "Waking GPU…" : "Run GPU probe"}
+          </button>
+          <div className="probe-output" aria-live="polite">
+            {!probe && !running && <span>Idle. No GPU compute is running.</span>}
+            {running && <span>Cold starts can take a moment…</span>}
+            {probe?.ok && (
+              <>
+                <strong>{probe.gpu ?? "GPU online"}</strong>
+                <span>{probe.memory_mb ? `${probe.memory_mb} MB memory · Modal response verified` : "Modal response verified"}</span>
+              </>
+            )}
+            {probe && !probe.ok && <span>{probe.message ?? probe.error ?? "The GPU probe is not connected yet."}</span>}
           </div>
         </div>
       </section>
 
-      <section className="about section" id="about">
-        <div className="section-label">A short version</div>
-        <div className="about-grid">
-          <h2>Builder. Product thinker. AI tinkerer.</h2>
-          <div>
-            <p>
-              I like turning fuzzy ideas into clear interfaces and working
-              systems. This site is where finished work and unfinished
-              curiosity can live side by side.
-            </p>
-            <a href="mailto:johnsweber@gmail.com">Start a conversation ↗</a>
-          </div>
+      <section className="section about" id="about">
+        <div className="about-image">
+          <img src="/curious-lab-moodboard.png" alt="Curious Lab visual direction for John Weber" />
+        </div>
+        <div className="about-copy">
+          <div className="section-label">A CURIOUS PRACTICE</div>
+          <h2>Professional rigor, playful energy.</h2>
+          <p>
+            I like turning fuzzy ideas into clear interfaces and working
+            systems. This is where finished work and unfinished curiosity can
+            live side by side.
+          </p>
+          <a href="mailto:johnsweber@gmail.com">Start a conversation <span>↗</span></a>
         </div>
       </section>
 
       <footer>
-        <span>JOHNSWEBER.COM</span>
-        <span>Built at the edge · GPU when needed</span>
-        <span>© {new Date().getFullYear()}</span>
+        <a className="wordmark" href="#top" aria-label="Back to top">JW</a>
+        <span>BRIGHT IDEAS · CLEAR SYSTEMS · CURIOUS AI</span>
+        <span>© {new Date().getFullYear()} JOHN WEBER</span>
       </footer>
     </main>
   );

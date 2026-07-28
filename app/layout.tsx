@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { AuthProvider } from "./auth-provider";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -14,25 +15,25 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   metadataBase: new URL("https://johnsweber.com"),
-  title: "John Weber — Builder & AI Playground",
+  title: "John Weber — Product Thinker, Builder & AI Tinkerer",
   description:
-    "John Weber's personal site, portfolio, and live workshop for applied AI experiments.",
+    "Bright ideas, clear systems, and approachable AI experiments by John Weber.",
   icons: {
     icon: "/favicon.svg",
     shortcut: "/favicon.svg",
   },
   openGraph: {
-    title: "John Weber — Builder & AI Playground",
+    title: "John Weber — Product Thinker, Builder & AI Tinkerer",
     description:
-      "A personal site, living portfolio, and public workshop for applied AI.",
+      "Bright ideas, clear systems, and approachable AI experiments.",
     type: "website",
     images: ["/og.png"],
   },
   twitter: {
     card: "summary_large_image",
-    title: "John Weber — Builder & AI Playground",
+    title: "John Weber — Product Thinker, Builder & AI Tinkerer",
     description:
-      "A personal site, living portfolio, and public workshop for applied AI.",
+      "Bright ideas, clear systems, and approachable AI experiments.",
     images: ["/og.png"],
   },
 };
@@ -42,10 +43,12 @@ export default function RootLayout({
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const publishableKey = process.env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY;
+
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
-        {children}
+        <AuthProvider publishableKey={publishableKey}>{children}</AuthProvider>
       </body>
     </html>
   );
