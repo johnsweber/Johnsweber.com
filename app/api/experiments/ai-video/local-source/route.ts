@@ -1,3 +1,4 @@
+import { Buffer } from "node:buffer";
 import {
   ensureAiVideoSchema,
   completePendingAiVideoMedia,
@@ -12,6 +13,7 @@ import { requireApiUser } from "@/lib/api-auth";
 import { copyDemoAssetToR2, demoAssetFor } from "@/lib/demo-media";
 import { publicAiVideoMedia } from "@/lib/ai-video-service";
 import { requestUsesProduction } from "@/lib/production-mode";
+import { getPictureSettings } from "@/lib/ai-picture-models";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +30,11 @@ export async function POST(request: Request) {
       prompt?: string;
       negativePrompt?: string;
       model?: string;
+      preset?: string;
+      aspect?: string;
       seed?: number;
+      referenceMediaId?: string;
+      strength?: number;
       displayName?: string;
       email?: string;
       avatarUrl?: string;
@@ -36,7 +42,19 @@ export async function POST(request: Request) {
     };
     const prompt = input.prompt?.trim() || "";
     const negativePrompt = input.negativePrompt?.trim() || "";
-    const model = input.model === "animagine" ? "animagine" : "base";
+    const settings = getPictureSettings(
+      String(input.model || ""),
+      String(input.preset || "medium"),
+      String(input.aspect || "landscape"),
+    );
+    if (!settings) {
+      return Response.json({ error: "Choose a supported picture configuration." }, { status: 400 });
+    }
+    const { model, preset, dimensions } = settings;
+    const referenceMediaId = String(input.referenceMediaId || "");
+    const strength = Number.isFinite(input.strength)
+      ? Math.max(0.1, Math.min(0.95, Number(input.strength)))
+      : 0.6;
     const seed = Number.isInteger(input.seed)
       ? Number(input.seed)
       : Math.floor(Math.random() * 2_147_483_647);
@@ -68,12 +86,12 @@ export async function POST(request: Request) {
       user_id: user.id,
       media_type: "picture",
       status: "submitted",
-      model_key: model,
+      model_key: model.key,
       prompt,
       negative_prompt: negativePrompt || null,
-      quality: "1024x576",
-      width: 1024,
-      height: 576,
+      quality: `${input.preset || "medium"}:${dimensions.width}x${dimensions.height}`,
+      width: dimensions.width,
+      height: dimensions.height,
       duration_seconds: null,
       fps: null,
       seed,
@@ -118,50 +136,100 @@ export async function POST(request: Request) {
       );
     }
 
-    const gatewayUrl = process.env.LOCAL_IMAGE_GATEWAY_URL?.replace(/\/$/, "");
-    const gatewayToken = process.env.LOCAL_IMAGE_GATEWAY_TOKEN;
-    if (!gatewayUrl || !gatewayToken) {
+    let referenceImageBase64: string | undefined;
+    if (referenceMediaId) {
+      if (!model.supportsReference) {
+        throw new Error(`${model.name} does not support reference-image editing.`);
+      }
+      const reference = await getAiVideoMediaItem(referenceMediaId, user.id);
+      if (
+        !reference ||
+        reference.media_type !== "picture" ||
+        reference.status !== "complete" ||
+        !reference.content_object_key
+      ) {
+        throw new Error("The reference picture is unavailable.");
+      }
+      const object = await (await getAiVideoMedia()).get(reference.content_object_key);
+      if (!object) throw new Error("The reference picture file is unavailable.");
+      referenceImageBase64 = Buffer.from(await object.arrayBuffer()).toString("base64");
+    }
+
+    const gatewayUrl = (
+      model.provider === "modal"
+        ? process.env.Z_IMAGE_MODAL_URL
+        : process.env.LOCAL_IMAGE_GATEWAY_URL
+    )?.replace(/\/$/, "");
+    const gatewayToken =
+      model.provider === "modal"
+        ? null
+        : process.env.LOCAL_IMAGE_GATEWAY_TOKEN;
+    if (!gatewayUrl) {
+      throw new Error(
+        model.provider === "modal"
+          ? "Z-Image is not configured."
+          : "The local picture generator is not configured.",
+      );
+    }
+    if (model.provider !== "modal" && !gatewayToken) {
       throw new Error("The local picture generator is not configured.");
+    }
+    if (
+      model.provider === "modal" &&
+      (!process.env.MODAL_PROXY_TOKEN_ID || !process.env.MODAL_PROXY_TOKEN_SECRET)
+    ) {
+      throw new Error("Z-Image is not configured.");
     }
 
     const generated = await fetch(`${gatewayUrl}/generate`, {
       method: "POST",
       headers: {
-        Authorization: `Bearer ${gatewayToken}`,
+        ...(model.provider === "modal"
+          ? {
+              "Modal-Key": process.env.MODAL_PROXY_TOKEN_ID as string,
+              "Modal-Secret": process.env.MODAL_PROXY_TOKEN_SECRET as string,
+            }
+          : { Authorization: `Bearer ${gatewayToken}` }),
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
         prompt,
         negativePrompt,
-        model,
+        model: model.key,
         seed,
-        width: 1024,
-        height: 576,
+        width: dimensions.width,
+        height: dimensions.height,
+        steps: preset.steps,
+        image_base64: referenceImageBase64,
+        strength,
       }),
       signal: AbortSignal.timeout(260_000),
     });
     const result = (await generated.json().catch(() => ({}))) as {
       image?: { imageUrl?: string; mimeType?: string };
+      image_base64?: string;
+      mime_type?: string;
       error?: string;
+      detail?: string;
     };
-    if (!generated.ok || !result.image?.imageUrl) {
-      throw new Error(result.error || "The local GPU did not return a picture.");
+    if (!generated.ok || (!result.image?.imageUrl && !result.image_base64)) {
+      throw new Error(result.error || result.detail || `${model.name} did not return a picture.`);
     }
     const beforeDownload = await getAiVideoMediaItem(mediaId, user.id);
     if (beforeDownload?.error_message === "Cancelled by user.") {
       return Response.json({ error: "Cancelled by user.", mediaId }, { status: 409 });
     }
 
-    const imageResponse = await fetch(result.image.imageUrl, {
-      signal: AbortSignal.timeout(30_000),
-    });
-    if (!imageResponse.ok || !imageResponse.body) {
+    const imageResponse = result.image?.imageUrl
+      ? await fetch(result.image.imageUrl, { signal: AbortSignal.timeout(30_000) })
+      : null;
+    if (imageResponse && (!imageResponse.ok || !imageResponse.body)) {
       throw new Error("The generated picture could not be retrieved.");
     }
 
-    const contentType =
-      imageResponse.headers.get("content-type") ||
-      result.image.mimeType ||
+    const contentType = result.mime_type ||
+      imageResponse?.headers.get("content-type") ||
+      result.image?.mimeType ||
       "image/png";
     const extension = contentType.includes("webp")
       ? "webp"
@@ -169,7 +237,11 @@ export async function POST(request: Request) {
         ? "jpg"
         : "png";
     const objectKey = `experiments/ai-video/users/${user.id}/pictures/${mediaId}.${extension}`;
-    await (await getAiVideoMedia()).put(objectKey, imageResponse.body, {
+    const imageBody = result.image_base64
+      ? Buffer.from(result.image_base64, "base64")
+      : imageResponse?.body;
+    if (!imageBody) throw new Error("The generated picture was empty.");
+    await (await getAiVideoMedia()).put(objectKey, imageBody, {
       httpMetadata: { contentType },
       customMetadata: { userId: user.id, experiment: "ai-video" },
     });

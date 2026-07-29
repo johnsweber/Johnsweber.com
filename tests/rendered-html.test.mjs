@@ -136,11 +136,19 @@ test("separates picture and video creation models", async () => {
     new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
     "utf8",
   );
+  const pictureModels = await readFile(
+    new URL("../lib/ai-picture-models.ts", import.meta.url),
+    "utf8",
+  );
+  const pictureSource = `${source}\n${pictureModels}`;
   assert.match(source, /Creation type/);
   assert.match(source, /> Picture/);
   assert.match(source, /> Video/);
-  assert.match(source, /SDXL Base 1\.0/);
-  assert.match(source, /Animagine XL 4\.0/);
+  assert.match(pictureSource, /SDXL Base 1\.0/);
+  assert.match(pictureSource, /Animagine XL 4\.0/);
+  assert.match(pictureSource, /Z-Image Turbo 6B/);
+  assert.match(source, /Picture quality preset/);
+  assert.match(source, /Edit picture/);
   assert.match(source, /Wan \+ LTX/);
   assert.match(source, /Choose reference image/);
   assert.match(source, /Choose and preview a reference image/);

@@ -111,7 +111,9 @@ AI Video experiment (login required):
   transition automatically into the completed player. Completed videos with a
   saved last frame offer **Extend video**.
   Completed pictures offer **Animate picture**, which opens Wan with that
-  user-owned picture preloaded and previewed as its reference image.
+  user-owned picture preloaded and previewed as its reference image, and
+  **Edit picture**, which opens Z-Image Turbo with the saved picture preloaded
+  as its private image-to-image reference.
   Video players read the file's actual metadata duration and persist it back to
   the owned media record, correcting older configuration-derived durations.
   **Scan timeline** lazily samples roughly one frame per three seconds in the
@@ -190,11 +192,14 @@ Video models are declared in `lib/ai-video-models.ts`.
   - Hugging Face access is granted for both the LTX-2.3 weights and its gated
     Gemma 3 text-encoder dependency.
 
-Picture creation uses the protected local GPU/ComfyUI connection:
+Picture creation supports local ComfyUI models plus hosted Z-Image:
 
 - SDXL Base 1.0 (`base`)
 - Animagine XL 4.0 (`animagine`)
-- Both currently generate `1024x576` private pictures.
+- Z-Image Turbo 6B (`zimage`) runs on Modal and supports both text-to-image
+  creation and reference-image editing.
+- Picture models expose Fast, Medium, and Quality presets plus square,
+  landscape, and portrait canvases up to 1536 pixels.
 - `npm run local-ai:start` starts ComfyUI, the authenticated local gateway, and
   a Cloudflare Quick Tunnel, then updates the encrypted Worker URL/token. The
   tunnel and generator remain available only while this computer and those
@@ -347,6 +352,7 @@ Encrypted Worker runtime values:
 - `MODAL_PROXY_TOKEN_SECRET`
 - `WAN22_MODAL_URL`
 - `LTX23_MODAL_URL`
+- `Z_IMAGE_MODAL_URL`
 - `LOCAL_IMAGE_GATEWAY_URL`
 - `LOCAL_IMAGE_GATEWAY_TOKEN`
 - `MEDIA_TOOLS_MODAL_URL`

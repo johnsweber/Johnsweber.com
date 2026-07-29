@@ -15,6 +15,7 @@ import {
   LockKeyhole,
   EllipsisVertical,
   PanelsTopLeft,
+  Pencil,
   Play,
   Plus,
   RefreshCw,
@@ -43,6 +44,13 @@ import {
 } from "react";
 import { useAuthConfigured } from "@/app/auth-provider";
 import { AI_VIDEO_MODELS, type AiVideoModelKey } from "@/lib/ai-video-models";
+import {
+  AI_PICTURE_MODELS,
+  PICTURE_ASPECTS,
+  type PictureAspectKey,
+  type PictureModelKey,
+  type PicturePresetKey,
+} from "@/lib/ai-picture-models";
 import { USE_PRODUCTION_HEADER } from "@/lib/production-mode";
 import {
   readUseProduction,
@@ -53,20 +61,8 @@ type View = "home" | "create" | "library" | "queue" | "player" | "media" | "scen
 type CreationType = "picture" | "video";
 type MediaType = CreationType | "scene";
 type MediaStatus = "submitted" | "pending" | "complete" | "failed";
-type PictureModelKey = "base" | "animagine";
 type GenerationPreset = "test" | "fast" | "max" | "custom";
 type GpuTemperature = "checking" | "warm" | "cold" | "unknown";
-
-const PICTURE_MODELS = {
-  base: {
-    name: "SDXL Base 1.0",
-    description: "Versatile photoreal, illustrative, and concept-image creation.",
-  },
-  animagine: {
-    name: "Animagine XL 4.0",
-    description: "Expressive anime and illustration-focused image creation.",
-  },
-} as const;
 
 type PublicJob = {
   id: string;
@@ -149,7 +145,7 @@ type QueueReconciler = {
 function modelName(media: PublicMedia) {
   if (media.mediaType === "scene") return "Scene";
   if (media.mediaType === "picture") {
-    return PICTURE_MODELS[media.modelKey as PictureModelKey]?.name || media.modelKey;
+    return AI_PICTURE_MODELS[media.modelKey as PictureModelKey]?.name || media.modelKey;
   }
   return AI_VIDEO_MODELS[media.modelKey as AiVideoModelKey]?.name || media.modelKey;
 }
@@ -834,7 +830,7 @@ function HomeView() {
             <span>PICTURE</span>
             <h3>Local image models</h3>
             <p>Use SDXL Base or Animagine to create a private still on your connected GPU.</p>
-            <div><b>1024 × 576</b><b>SDXL</b><b>Animagine</b></div>
+            <div><b>Up to 1536 px</b><b>Z-Image Turbo</b><b>Reference editing</b></div>
           </article>
           <article>
             <span>VIDEO</span>
@@ -961,6 +957,7 @@ function CreateView() {
   const searchParams = useSearchParams();
   const extendMediaId = searchParams.get("extend");
   const animateMediaId = searchParams.get("animate");
+  const editMediaId = searchParams.get("edit");
   const requestedSceneId = searchParams.get("scene");
   const startsWithVideo = Boolean(
     extendMediaId || animateMediaId || searchParams.get("mode") === "video",
@@ -969,7 +966,10 @@ function CreateView() {
   const { user } = useUser();
   const { useProduction } = useProductionMode(user?.id);
   const [creationType, setCreationType] = useState<CreationType>(startsWithVideo ? "video" : "picture");
-  const [pictureModel, setPictureModel] = useState<PictureModelKey>("base");
+  const [pictureModel, setPictureModel] = useState<PictureModelKey>("zimage");
+  const [picturePreset, setPicturePreset] = useState<PicturePresetKey>("medium");
+  const [pictureAspect, setPictureAspect] = useState<PictureAspectKey>("landscape");
+  const [editStrength, setEditStrength] = useState(0.6);
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
   const videoModel = AI_VIDEO_MODELS[videoModelKey];
   const [quality, setQuality] = useState(extendMediaId ? "480p" : "480p");
@@ -995,6 +995,7 @@ function CreateView() {
   const [createdSceneId, setCreatedSceneId] = useState<string | null>(null);
   const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
   const [animateMedia, setAnimateMedia] = useState<PublicMedia | null>(null);
+  const [editMedia, setEditMedia] = useState<PublicMedia | null>(null);
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
   const renderEstimateSeconds = useMemo(() => {
     const baseEstimate = videoModelKey === "wan22"
@@ -1075,6 +1076,28 @@ function CreateView() {
       })
       .catch(error => setError(error instanceof Error ? error.message : "Unable to load this picture."));
   }, [animateMediaId, authorizedFetch, extendMediaId]);
+  useEffect(() => {
+    if (!editMediaId) return;
+    authorizedFetch(`/api/experiments/ai-video/media/${editMediaId}`)
+      .then(async response => {
+        const data = await response.json() as { media?: PublicMedia; error?: string };
+        if (
+          !response.ok ||
+          !data.media ||
+          data.media.mediaType !== "picture" ||
+          data.media.status !== "complete"
+        ) {
+          throw new Error(data.error || "This picture is unavailable for editing.");
+        }
+        setEditMedia(data.media);
+        setCreationType("picture");
+        setPictureModel("zimage");
+        setPrompt(`Edit this image: ${data.media.prompt}`);
+        const ratio = data.media.width / Math.max(1, data.media.height);
+        setPictureAspect(ratio > 1.2 ? "landscape" : ratio < 0.84 ? "portrait" : "square");
+      })
+      .catch(error => setError(error instanceof Error ? error.message : "Unable to load this picture."));
+  }, [authorizedFetch, editMediaId]);
 
   function chooseCreationType(next: CreationType) {
     setCreationType(next);
@@ -1164,7 +1187,14 @@ function CreateView() {
               prompt,
               negativePrompt,
               model: pictureModel,
+              preset: picturePreset,
+              aspect: pictureAspect,
               seed,
+              referenceMediaId:
+                editMediaId && AI_PICTURE_MODELS[pictureModel].supportsReference
+                  ? editMediaId
+                  : undefined,
+              strength: editStrength,
               displayName: user?.fullName || "",
               email: user?.primaryEmailAddress?.emailAddress || "",
               avatarUrl: user?.imageUrl || "",
@@ -1296,10 +1326,22 @@ function CreateView() {
           </div>
           <div className="aiv-choice-grid">
             {creationType === "picture"
-              ? (Object.keys(PICTURE_MODELS) as PictureModelKey[]).map((key) => {
-                  const option = PICTURE_MODELS[key];
+              ? (Object.keys(AI_PICTURE_MODELS) as PictureModelKey[]).map((key) => {
+                  const option = AI_PICTURE_MODELS[key];
                   return (
-                    <button type="button" key={key} className={pictureModel === key ? "selected" : ""} onClick={() => setPictureModel(key)}>
+                    <button
+                      type="button"
+                      key={key}
+                      className={pictureModel === key ? "selected" : ""}
+                      onClick={() => {
+                        setPictureModel(key);
+                        setError(
+                          editMediaId && !option.supportsReference
+                            ? `${option.name} cannot edit a reference image. Choose Z-Image Turbo to keep editing.`
+                            : "",
+                        );
+                      }}
+                    >
                       <span>PICTURE</span>
                       <strong>{option.name}</strong>
                       <small>{option.description}</small>
@@ -1335,7 +1377,7 @@ function CreateView() {
               <small>
                 {creationType === "picture"
                   ? useProduction
-                    ? "Your connected picture model will create a private 1024 × 576 image."
+                    ? "Choose a speed, canvas, and model. Finished pictures stay private."
                     : "Demo mode returns a free example picture for your private library."
                   : videoModel.requiresImage
                     ? useProduction
@@ -1347,6 +1389,33 @@ function CreateView() {
               </small>
             </div>
           </div>
+          {creationType === "picture" && editMedia && (
+            <div className="aiv-reference-block">
+              <span className="aiv-reference-label"><Pencil aria-hidden="true" /> Editing reference</span>
+              <div className="aiv-upload has-preview aiv-extend-source">
+                <PrivateMediaAsset mediaId={editMedia.id} mediaType="picture" thumbnail>
+                  <Clock3 aria-hidden="true" />
+                </PrivateMediaAsset>
+                <strong>Saved picture</strong>
+                <span>
+                  {AI_PICTURE_MODELS[pictureModel].supportsReference
+                    ? "Your prompt will transform this picture while retaining its composition."
+                    : "Choose Z-Image Turbo to use this reference."}
+                </span>
+              </div>
+              {AI_PICTURE_MODELS[pictureModel].supportsReference && (
+                <GenerationRange
+                  label="Edit strength"
+                  value={editStrength}
+                  min={0.1}
+                  max={0.95}
+                  step={0.05}
+                  hint="Lower preserves more; higher changes more"
+                  onChange={setEditStrength}
+                />
+              )}
+            </div>
+          )}
           {creationType === "video" && videoModel.supportsImage && extendMedia ? (
             <div className="aiv-reference-block">
               <span className="aiv-reference-label"><PictureIcon aria-hidden="true" /> Reference image</span>
@@ -1425,7 +1494,26 @@ function CreateView() {
               <small>Every available {creationType === "video" ? `${videoModel.name} ` : ""}option is shown. Lowest-compute values are selected by default.</small>
             </div>
           </div>
-          {creationType === "video" && (
+          {creationType === "picture" ? (
+            <div className="aiv-preset-row" role="group" aria-label="Picture quality preset">
+              {([
+                ["fast", "Fast", "Quick draft at a smaller resolution."],
+                ["medium", "Medium", "Balanced detail, size, and generation time."],
+                ["quality", "Quality", "Largest canvas and maximum model effort."],
+              ] as const).map(([key, label, description]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={picturePreset === key ? "selected" : ""}
+                  aria-pressed={picturePreset === key}
+                  onClick={() => setPicturePreset(key)}
+                >
+                  <strong>{label}{key === "medium" && <span>Default</span>}</strong>
+                  <small>{description}</small>
+                </button>
+              ))}
+            </div>
+          ) : (
             <div className="aiv-preset-row" role="group" aria-label="Generation preset">
               {([
                 ["test", "Test", "Cheapest settings to verify the pipeline."],
@@ -1451,7 +1539,15 @@ function CreateView() {
               <legend>{videoModelKey === "wan22" || creationType === "picture" ? "Resolution" : "Canvas"}</legend>
               <div>
                 {creationType === "picture" ? (
-                  <label><input type="radio" checked readOnly /><span>1024 × 576</span></label>
+                  (Object.keys(PICTURE_ASPECTS) as PictureAspectKey[]).map(key => {
+                    const dimensions = PICTURE_ASPECTS[key].dimensions[picturePreset];
+                    return (
+                      <label key={key}>
+                        <input type="radio" name="pictureAspect" checked={pictureAspect === key} onChange={() => setPictureAspect(key)} />
+                        <span>{PICTURE_ASPECTS[key].label}<small>{dimensions.width} × {dimensions.height}</small></span>
+                      </label>
+                    );
+                  })
                 ) : videoModelKey === "wan22" ? (
                   Object.entries(videoModel.qualities).map(([key, option]) => (
                     <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => customize(() => setQuality(key))} /><span>{option.label}</span></label>
@@ -1554,7 +1650,10 @@ function CreateView() {
           <div><Clock3 aria-hidden="true" /><span>After submission, pending work appears immediately in your private library.</span></div>
           <button
             type="submit"
-            disabled={submitting}
+            disabled={
+              submitting ||
+              Boolean(editMediaId && !AI_PICTURE_MODELS[pictureModel].supportsReference)
+            }
           >
             {submitting ? submissionStatus || "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
           </button>
@@ -2047,6 +2146,9 @@ function MediaView({
               <Link href={`/experiments/ai-video/create?mode=video&animate=${media.id}`}>
                 <WandSparkles aria-hidden="true" /> Animate picture
               </Link>
+              <Link className="secondary" href={`/experiments/ai-video/create?edit=${media.id}`}>
+                <Pencil aria-hidden="true" /> Edit picture
+              </Link>
             </div>
           )}
         </section>
@@ -2062,6 +2164,7 @@ type PublicTask = {
 
 function SceneView({ sceneId }: { sceneId: string }) {
   const authorizedFetch = useAuthorizedFetch();
+  const observedExportPending = useRef(false);
   const [title, setTitle] = useState("Scene");
   const [items, setItems] = useState<PublicMedia[]>([]);
   const [index, setIndex] = useState(0);

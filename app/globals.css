@@ -1858,6 +1858,7 @@ body.menu-open { overflow: hidden; }
 .aiv-setting-row fieldset label { flex: 1; }
 .aiv-setting-row fieldset input { position: absolute; opacity: 0; }
 .aiv-setting-row fieldset span { min-height: 48px; display: grid; place-items: center; border: 1px solid var(--aiv-line); border-radius: 14px; background: rgba(255,255,255,.6); font-size: .8rem; font-weight: 700; }
+.aiv-setting-row fieldset span small { color: var(--aiv-muted); font-size: .58rem; font-weight: 600; }
 .aiv-setting-row fieldset input:checked + span { color: white; border-color: var(--aiv-violet); background: var(--aiv-violet); }
 .aiv-seed { display: flex; flex-direction: column; gap: .6rem; }
 .aiv-seed small { color: var(--aiv-muted); font-size: .68rem; line-height: 1.4; }

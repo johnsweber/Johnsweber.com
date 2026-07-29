@@ -45,7 +45,7 @@ function authorized(request) {
   return request.headers.authorization === `Bearer ${gatewayToken}`;
 }
 
-function workflow({ prompt, negativePrompt, model, seed, width, height }) {
+function workflow({ prompt, negativePrompt, model, seed, width, height, steps }) {
   const checkpoint =
     model === "animagine"
       ? "animagine-xl-4.0-opt.safetensors"
@@ -65,7 +65,7 @@ function workflow({ prompt, negativePrompt, model, seed, width, height }) {
       class_type: "KSampler",
       inputs: {
         seed,
-        steps: model === "animagine" ? 28 : 24,
+        steps,
         cfg: model === "animagine" ? 5 : 7,
         sampler_name: "euler",
         scheduler: "normal",
@@ -126,6 +126,7 @@ async function generate(request, response) {
   const seed = Number.isInteger(input.seed) && input.seed >= 0 ? input.seed : Math.floor(Math.random() * 2_147_483_647);
   const width = Math.max(512, Math.min(1536, Number(input.width) || 1024));
   const height = Math.max(512, Math.min(1536, Number(input.height) || 576));
+  const steps = Math.max(1, Math.min(50, Number(input.steps) || (model === "animagine" ? 28 : 24)));
   if (!prompt) return json(response, 400, { error: "A prompt is required." });
 
   const queued = await comfyJson(
@@ -141,6 +142,7 @@ async function generate(request, response) {
           seed,
           width,
           height,
+          steps,
         }),
         client_id: randomUUID(),
       }),
