@@ -52,6 +52,7 @@ import {
   type PicturePresetKey,
 } from "@/lib/ai-picture-models";
 import { USE_PRODUCTION_HEADER } from "@/lib/production-mode";
+import { SiteNavigation } from "@/app/site-navigation";
 import {
   readUseProduction,
   useProductionMode,
@@ -284,10 +285,10 @@ function BottomNavigation() {
 function ExperimentHeader({ close = false }: { close?: boolean }) {
   return (
     <header className="aiv-header">
-      <Link href="/" className="aiv-brand" aria-label="John Weber home">
-        <span><Clapperboard aria-hidden="true" /></span>
+      <div className="aiv-brand">
+        <SiteNavigation triggerOnly />
         <strong>AI VIDEO</strong>
-      </Link>
+      </div>
       <Link
         href={close ? "/experiments/ai-video/library" : "/"}
         className="aiv-close"
@@ -2300,6 +2301,9 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [libraryVideos, setLibraryVideos] = useState<PublicMedia[]>([]);
   const [sources, setSources] = useState<Record<string, string>>({});
+  const [playbackTime, setPlaybackTime] = useState(0);
+  const [timelinePreview, setTimelinePreview] = useState<number | null>(null);
+  const sceneTimelineRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const playbackRefs = useRef(new Map<string, HTMLVideoElement>());
   const savedDurations = useRef(new Map<string, number>());
@@ -2427,10 +2431,49 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
     });
   }, [allVideosReady, index, items]);
 
-  function selectClip(itemIndex: number) {
+  function selectClip(itemIndex: number, localTime = 0, play = true) {
+    if (itemIndex < 0 || itemIndex >= items.length) return;
+    playbackRefs.current.forEach(video => video.pause());
     const video = playbackRefs.current.get(items[itemIndex]?.id);
-    if (video) video.currentTime = 0;
+    if (video) {
+      video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
+      if (play) void video.play().catch(() => undefined);
+    }
     setIndex(itemIndex);
+  }
+
+  const sceneDuration = items.reduce(
+    (sum, item) => sum + Math.max(0, item.durationSeconds || 0),
+    0,
+  );
+  const elapsedBefore = (itemIndex: number) =>
+    items.slice(0, itemIndex).reduce(
+      (sum, item) => sum + Math.max(0, item.durationSeconds || 0),
+      0,
+    );
+  function locateSceneTime(sceneTime: number) {
+    let cursor = 0;
+    for (let itemIndex = 0; itemIndex < items.length; itemIndex += 1) {
+      const duration = Math.max(0, items[itemIndex].durationSeconds || 0);
+      if (sceneTime <= cursor + duration || itemIndex === items.length - 1) {
+        return { itemIndex, localTime: Math.max(0, sceneTime - cursor) };
+      }
+      cursor += duration;
+    }
+    return { itemIndex: 0, localTime: 0 };
+  }
+  function sceneTimeAt(clientX: number) {
+    const bounds = sceneTimelineRef.current?.getBoundingClientRect();
+    if (!bounds || !sceneDuration) return 0;
+    return Math.min(
+      sceneDuration,
+      Math.max(0, ((clientX - bounds.left) / bounds.width) * sceneDuration),
+    );
+  }
+  function seekScene(sceneTime: number) {
+    const target = locateSceneTime(sceneTime);
+    setPlaybackTime(sceneTime);
+    selectClip(target.itemIndex, target.localTime);
   }
 
   async function openLibraryPicker() {
@@ -2530,6 +2573,11 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 playsInline
                 preload="auto"
                 onEnded={() => selectClip(itemIndex + 1 < items.length ? itemIndex + 1 : 0)}
+                onTimeUpdate={event => {
+                  if (itemIndex === index && timelinePreview === null) {
+                    setPlaybackTime(elapsedBefore(itemIndex) + event.currentTarget.currentTime);
+                  }
+                }}
                 onLoadedMetadata={(event) => {
                   const duration = event.currentTarget.duration;
                   if (Number.isFinite(duration) && duration > 0) {
@@ -2551,20 +2599,89 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
               <h1>{title}</h1>
               <p>{current.prompt}</p>
             </div>
-            <span>{formatDuration(items.reduce((sum, item) => sum + (item.durationSeconds || 0), 0))} total</span>
+            <span>{formatDuration(sceneDuration)} total</span>
+          </div>
+          <div className="aiv-scene-timeline-wrap">
+            <div
+              ref={sceneTimelineRef}
+              className="aiv-scene-timeline"
+              role="slider"
+              tabIndex={0}
+              aria-label="Scene timeline"
+              aria-valuemin={0}
+              aria-valuemax={Math.round(sceneDuration)}
+              aria-valuenow={Math.round(timelinePreview ?? playbackTime)}
+              onPointerDown={event => {
+                event.currentTarget.setPointerCapture(event.pointerId);
+                playbackRefs.current.get(items[index]?.id)?.pause();
+                setTimelinePreview(sceneTimeAt(event.clientX));
+              }}
+              onPointerMove={event => {
+                if (event.pointerType !== "touch" || event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  setTimelinePreview(sceneTimeAt(event.clientX));
+                }
+              }}
+              onPointerUp={event => {
+                const time = sceneTimeAt(event.clientX);
+                seekScene(time);
+                setTimelinePreview(null);
+                if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+                  event.currentTarget.releasePointerCapture(event.pointerId);
+                }
+              }}
+              onPointerLeave={event => {
+                if (!event.currentTarget.hasPointerCapture(event.pointerId)) setTimelinePreview(null);
+              }}
+              onKeyDown={event => {
+                if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+                event.preventDefault();
+                const next = event.key === "Home"
+                  ? 0
+                  : event.key === "End"
+                    ? sceneDuration
+                    : Math.min(sceneDuration, Math.max(0, playbackTime + (event.key === "ArrowLeft" ? -1 : 1)));
+                seekScene(next);
+              }}
+            >
+              {items.map((item, itemIndex) => (
+                <button
+                  type="button"
+                  key={item.id}
+                  className={itemIndex === index ? "active" : ""}
+                  style={{
+                    width: sceneDuration
+                      ? `${((item.durationSeconds || 0) / sceneDuration) * 100}%`
+                      : `${100 / items.length}%`,
+                  }}
+                  onClick={event => {
+                    event.stopPropagation();
+                    seekScene(elapsedBefore(itemIndex));
+                  }}
+                  aria-label={`Play clip ${itemIndex + 1}`}
+                >
+                  <PrivateMediaAsset mediaId={item.id} mediaType="video" thumbnail>
+                    <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
+                  </PrivateMediaAsset>
+                  <i>{itemIndex + 1}</i>
+                </button>
+              ))}
+              <span
+                className="aiv-scene-playhead"
+                style={{ left: `${sceneDuration ? ((timelinePreview ?? playbackTime) / sceneDuration) * 100 : 0}%` }}
+              />
+              {timelinePreview !== null && (
+                <output
+                  className="aiv-scene-timeline-preview"
+                  style={{ left: `${sceneDuration ? (timelinePreview / sceneDuration) * 100 : 0}%` }}
+                >
+                  <strong>Clip {locateSceneTime(timelinePreview).itemIndex + 1}</strong>
+                  <span>{formatDuration(timelinePreview)}</span>
+                </output>
+              )}
+            </div>
+            <div className="aiv-scan-time"><span>{formatDuration(playbackTime)}</span><span>{formatDuration(sceneDuration)}</span></div>
           </div>
           <div className="aiv-scene-strip">
-            {items.map((item, itemIndex) => (
-              <button
-                type="button"
-                key={item.id}
-                className={itemIndex === index ? "selected" : ""}
-                onClick={() => selectClip(itemIndex)}
-              >
-                <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
-                {item.prompt}
-              </button>
-            ))}
             <button type="button" className="aiv-scene-add" onClick={openLibraryPicker}>
               <span><Plus aria-hidden="true" /></span>
               Add from library

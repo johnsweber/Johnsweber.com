@@ -666,7 +666,8 @@ export async function createOrAppendScene(userId: string, sourceMedia: AiVideoMe
       id: sceneMediaId, user_id: userId, media_type: "scene", status: "complete",
       model_key: "scene", prompt: title, negative_prompt: null, quality: sourceMedia.quality,
       width: sourceMedia.width, height: sourceMedia.height, duration_seconds: sourceMedia.duration_seconds,
-      fps: sourceMedia.fps, seed: sourceMedia.seed, job_id: null, thumbnail_object_key: null,
+      fps: sourceMedia.fps, seed: sourceMedia.seed, job_id: null,
+      thumbnail_object_key: sourceMedia.thumbnail_object_key || sourceMedia.last_frame_object_key,
       last_frame_object_key: null, content_object_key: null, content_mime_type: null,
       error_message: null, created_at: now, updated_at: now, completed_at: now,
     };

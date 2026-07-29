@@ -21,11 +21,11 @@ import { useProductionMode } from "@/lib/use-production-mode";
 
 const navItems = [
   { label: "Home", detail: "The starting point", href: "/#top", icon: House },
+  { label: "AI Video", detail: "Private generative video lab", href: "/experiments/ai-video", icon: Video },
   { label: "Portfolio", detail: "Selected work and case notes", href: "/portfolio", icon: BriefcaseBusiness },
   { label: "Résumé", detail: "Career history and capabilities", href: "/resume", icon: FileText },
   { label: "Work", detail: "Projects and directions", href: "/#work", icon: Sparkles },
   { label: "Live lab", detail: "Edge-to-GPU experiments", href: "/#lab", icon: FlaskConical },
-  { label: "AI Video", detail: "Private generative video lab", href: "/experiments/ai-video", icon: Video },
 ];
 
 function MenuShell({
@@ -156,7 +156,7 @@ function ProductionModeControl({ userId }: { userId?: string | null }) {
   );
 }
 
-function ConfiguredNavigation() {
+function ConfiguredNavigation({ triggerOnly = false }: { triggerOnly?: boolean }) {
   const [open, setOpen] = useState(false);
   const { isLoaded, isSignedIn, user } = useUser();
   const { openUserProfile, signOut } = useClerk();
@@ -206,6 +206,18 @@ function ConfiguredNavigation() {
     </Link>
   );
 
+  if (triggerOnly) {
+    return (
+      <MenuShell
+        open={open}
+        setOpen={setOpen}
+        accountHeader={accountHeader}
+        accountItem={accountItem}
+        modeControl={<ProductionModeControl userId={user?.id} />}
+      />
+    );
+  }
+
   return (
     <nav className="nav">
       <MenuShell
@@ -235,8 +247,19 @@ function ConfiguredNavigation() {
   );
 }
 
-function UnconfiguredNavigation() {
+function UnconfiguredNavigation({ triggerOnly = false }: { triggerOnly?: boolean }) {
   const [open, setOpen] = useState(false);
+  if (triggerOnly) {
+    return (
+      <MenuShell
+        open={open}
+        setOpen={setOpen}
+        accountHeader={<div className="menu-guest"><span>YOUR PLAYGROUND</span><strong>Sign in to make it yours.</strong></div>}
+        accountItem={<Link href="/create-account" onClick={() => setOpen(false)}><span className="icon-nav-mark"><UserRoundCog size={25} aria-hidden="true" /></span><strong>User management</strong><small>Create or access your account</small></Link>}
+        modeControl={<ProductionModeControl />}
+      />
+    );
+  }
   return (
     <nav className="nav">
       <MenuShell
@@ -272,7 +295,9 @@ function UnconfiguredNavigation() {
   );
 }
 
-export function SiteNavigation() {
+export function SiteNavigation({ triggerOnly = false }: { triggerOnly?: boolean }) {
   const configured = useAuthConfigured();
-  return configured ? <ConfiguredNavigation /> : <UnconfiguredNavigation />;
+  return configured
+    ? <ConfiguredNavigation triggerOnly={triggerOnly} />
+    : <UnconfiguredNavigation triggerOnly={triggerOnly} />;
 }

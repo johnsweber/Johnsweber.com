@@ -70,7 +70,9 @@ Public/general:
 - `/resume` — public career summary and selected experience. Career facts must
   follow `docs/career-source-notes.md`; unverified metrics and case-study
   outcomes are intentionally excluded.
-- Grid icon in the top-left opens the site navigation.
+- Grid icon in the top-left opens the site navigation. AI Video sits in the
+  first row of its three-column grid, and the same trigger remains available
+  throughout the AI Video experiment.
 - The grid navigation includes a Demo/Production pill labeled `Use Production`.
   It is stored per user in browser `sessionStorage`, defaults to Demo (`false`)
   in every new browser session, and is sent to generation APIs through the
@@ -122,8 +124,11 @@ AI Video experiment (login required):
   private video without creating permanent thumbnail objects.
 - `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
   play in creation order. The player downloads every completed private clip
-  before playback and keeps each video element preloaded for seamless
-  transitions. A plus tile at the end of the timeline opens completed videos
+  before playback, layers the video elements in one player container, and
+  keeps them preloaded for seamless transitions. Loading appears inside the
+  player. A single duration-weighted timeline shows clip outlines and
+  thumbnails, follows playback with a playhead, and supports pointer, touch,
+  and keyboard scrubbing across all clips. A plus tile opens completed videos
   from the user's library; additions remain a draft until **Save scene**
   replaces the ordered D1 scene membership. Export is unavailable while the
   draft is unsaved or a member video is pending. Export queues a CPU-only
@@ -186,11 +191,14 @@ Video models are declared in `lib/ai-video-models.ts`.
   - One-click presets: Test uses those minimums; Fast uses `768x512`, 121
     frames at 24 fps; Max uses `1920x1088`, 241 frames at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
-  - Current Modal app/function: `ltx-2-3` / `ltx_api`.
+  - Current Modal app/function: `video-models` / `ltx_api`.
   - Current base route:
-    `https://johnsweber--ltx-2-3-ltx-api.modal.run`.
+    `https://johnsweber--video-models-ltx-api.modal.run`.
   - Hugging Face access is granted for both the LTX-2.3 weights and its gated
     Gemma 3 text-encoder dependency.
+  - Hugging Face Xet is disabled for model downloads because its hash parser
+    failed during the first cold start; authenticated HTTP downloads populate
+    the persistent model volume instead.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 

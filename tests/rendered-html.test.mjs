@@ -234,6 +234,11 @@ test("defaults generation to session-scoped demo mode", async () => {
   assert.match(navigation, /Use Production/);
   assert.match(navigation, />\s*Demo\s*</);
   assert.match(navigation, />\s*Production\s*</);
+  assert.match(navigation, /SiteNavigation\(\{ triggerOnly = false \}/);
+  assert.ok(
+    navigation.indexOf('label: "AI Video"') < navigation.indexOf('label: "Portfolio"'),
+    "AI Video should remain in the first row of the three-column menu",
+  );
   assert.match(sessionMode, /sessionStorage/);
   assert.match(sessionMode, /useState\(false\)/);
   assert.match(productionMode, /x-johnsweber-use-production/);
@@ -330,6 +335,11 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Save scene/);
   assert.match(app, /preload="auto"/);
   assert.match(app, /Promise\.all\(playable\.map/);
+  assert.match(app, /className="aiv-scene-timeline"/);
+  assert.match(app, /aria-label="Scene timeline"/);
+  assert.match(app, /aiv-scene-playhead/);
+  assert.match(app, /elapsedBefore\(itemIndex\)/);
+  assert.match(app, /<SiteNavigation triggerOnly \/>/);
   assert.match(app, /mediaIds: items\.map/);
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
   assert.match(app, /Opening the merged video/);
@@ -347,6 +357,7 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(database, /AS effective_status/);
   assert.match(database, /clip\.status IN \('submitted', 'pending'\)/);
   assert.match(database, /last_frame_object_key/);
+  assert.match(database, /sourceMedia\.thumbnail_object_key \|\| sourceMedia\.last_frame_object_key/);
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);
