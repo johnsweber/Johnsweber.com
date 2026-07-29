@@ -1922,6 +1922,11 @@ body.menu-open { overflow: hidden; }
 .aiv-progress-track span { height: 100%; display: block; border-radius: inherit; background: linear-gradient(90deg,var(--aiv-violet),var(--aiv-orange)); transition: width .5s ease; }
 .aiv-progress-meta { width: min(680px,100%); margin-top: .7rem; display: flex; justify-content: space-between; color: var(--aiv-muted); font-size: .75rem; }
 .aiv-progress-meta strong { color: var(--aiv-ink); }
+.aiv-picture-progress-preview { width: min(680px,100%); aspect-ratio: 16/9; margin-top: 1.4rem; display: grid; place-items: center; overflow: hidden; border: 1px solid var(--aiv-line); border-radius: 20px; color: var(--aiv-muted); background: #ebe8f4; }
+.aiv-picture-progress-preview img { width: 100%; height: 100%; object-fit: contain; filter: saturate(.84) brightness(.8); }
+.aiv-picture-progress-preview > span { font: 700 10px var(--font-geist-mono),monospace; letter-spacing: .1em; text-transform: uppercase; }
+.aiv-picture-preview-placeholder { gap: .7rem; align-content: center; background: radial-gradient(circle at 50% 35%,rgba(104,69,223,.2),transparent 44%),#ebe8f4; }
+.aiv-picture-preview-placeholder svg { width: 54px; height: 54px; color: var(--aiv-violet); }
 .aiv-generation-player { padding-top: 1.25rem; }
 .aiv-generation-preview {
   position: relative;

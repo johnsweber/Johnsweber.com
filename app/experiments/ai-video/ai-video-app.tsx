@@ -922,14 +922,60 @@ function ProgressPanel({ initialJob, sceneId }: { initialJob: PublicJob; sceneId
   );
 }
 
-function PicturePending() {
+function PicturePending({
+  modelKey,
+  preset,
+  reference,
+}: {
+  modelKey: PictureModelKey;
+  preset: PicturePresetKey;
+  reference: PublicMedia | null;
+}) {
+  const [elapsed, setElapsed] = useState(0);
+  const estimate = AI_PICTURE_MODELS[modelKey].presets[preset].estimateSeconds;
+  useEffect(() => {
+    const started = Date.now();
+    const timer = window.setInterval(
+      () => setElapsed((Date.now() - started) / 1000),
+      500,
+    );
+    return () => window.clearInterval(timer);
+  }, []);
+  const progress = Math.min(94, Math.max(4, Math.round((elapsed / estimate) * 88)));
+  const remaining = Math.max(0, Math.ceil(estimate - elapsed));
   return (
     <section className="aiv-progress-panel">
       <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
-      <p className="aiv-kicker">PENDING</p>
-      <h1>Your picture was submitted.</h1>
-      <p>Your local GPU is creating it now. Keep this screen open until the result is saved.</p>
-      <div className="aiv-picture-loader" aria-label="Picture generation pending"><span /></div>
+      <p className="aiv-kicker">CREATING · {progress}%</p>
+      <h1>Your picture is taking shape.</h1>
+      {reference ? (
+        <div className="aiv-picture-progress-preview">
+          <PrivateMediaAsset mediaId={reference.id} mediaType="picture" thumbnail>
+            <PictureIcon aria-hidden="true" />
+          </PrivateMediaAsset>
+          <span>Reference preview</span>
+        </div>
+      ) : (
+        <div className="aiv-picture-progress-preview aiv-picture-preview-placeholder">
+          <PictureIcon aria-hidden="true" />
+          <span>{AI_PICTURE_MODELS[modelKey].name}</span>
+        </div>
+      )}
+      <div
+        className="aiv-progress-track"
+        role="progressbar"
+        aria-label="Picture generation progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={progress}
+      >
+        <span style={{ width: `${progress}%` }} />
+      </div>
+      <div className="aiv-progress-meta">
+        <strong>{progress}%</strong>
+        <span>{remaining ? `About ${remaining}s remaining` : "Finishing and saving…"}</span>
+      </div>
+      <p>You can leave this screen after the request is accepted; the result is saved privately to your library.</p>
     </section>
   );
 }
@@ -1279,7 +1325,11 @@ function CreateView() {
     return (
       <main className="aiv-page">
         <ExperimentHeader />
-        <PicturePending />
+        <PicturePending
+          modelKey={pictureModel}
+          preset={picturePreset}
+          reference={editMedia}
+        />
         <BottomNavigation />
       </main>
     );

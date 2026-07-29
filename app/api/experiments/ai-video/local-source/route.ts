@@ -210,10 +210,20 @@ export async function POST(request: Request) {
       image_base64?: string;
       mime_type?: string;
       error?: string;
-      detail?: string;
+      detail?: unknown;
     };
     if (!generated.ok || (!result.image?.imageUrl && !result.image_base64)) {
-      throw new Error(result.error || result.detail || `${model.name} did not return a picture.`);
+      const detail = typeof result.detail === "string"
+        ? result.detail
+        : Array.isArray(result.detail)
+          ? result.detail.map(item => {
+              if (item && typeof item === "object" && "msg" in item) {
+                return String((item as { msg?: unknown }).msg || "");
+              }
+              return JSON.stringify(item);
+            }).filter(Boolean).join("; ")
+          : "";
+      throw new Error(result.error || detail || `${model.name} did not return a picture.`);
     }
     const beforeDownload = await getAiVideoMediaItem(mediaId, user.id);
     if (beforeDownload?.error_message === "Cancelled by user.") {

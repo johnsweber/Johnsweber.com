@@ -125,7 +125,7 @@ web_image = modal.Image.debian_slim(python_version="3.11").uv_pip_install(
 @app.function(image=web_image)
 @modal.asgi_app(requires_proxy_auth=True)
 def z_image_api():
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from pydantic import BaseModel, Field
 
     web = FastAPI(title="Z-Image Turbo", version="1.0.0")
@@ -145,17 +145,18 @@ def z_image_api():
         return {"ok": True, "model": MODEL_ID}
 
     @web.post("/generate")
-    async def generate(request: Request):
+    async def generate(request=Body(...)):
         try:
+            validated = Request.model_validate(request)
             return ZImage().generate.remote(
-                prompt=request.prompt,
-                negative_prompt=request.negativePrompt,
-                width=request.width,
-                height=request.height,
-                steps=request.steps,
-                seed=request.seed,
-                image_base64=request.image_base64,
-                strength=request.strength,
+                prompt=validated.prompt,
+                negative_prompt=validated.negativePrompt,
+                width=validated.width,
+                height=validated.height,
+                steps=validated.steps,
+                seed=validated.seed,
+                image_base64=validated.image_base64,
+                strength=validated.strength,
             )
         except Exception as error:
             raise HTTPException(status_code=500, detail=str(error)) from error
