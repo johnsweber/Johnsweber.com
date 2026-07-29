@@ -4,10 +4,10 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import {
   ArrowLeft,
   Check,
-  Clock3,
   Clapperboard,
-  Cpu,
+  Clock3,
   House,
+  Image as PictureIcon,
   Images,
   Library,
   LockKeyhole,
@@ -15,8 +15,8 @@ import {
   Play,
   Plus,
   Settings2,
-  Sparkles,
   Upload,
+  Video,
   WandSparkles,
   X,
 } from "lucide-react";
@@ -32,7 +32,21 @@ import {
 import { useAuthConfigured } from "@/app/auth-provider";
 import { AI_VIDEO_MODELS, type AiVideoModelKey } from "@/lib/ai-video-models";
 
-type View = "home" | "create" | "library" | "player";
+type View = "home" | "create" | "library" | "player" | "media";
+type CreationType = "picture" | "video";
+type MediaStatus = "submitted" | "pending" | "complete" | "failed";
+type PictureModelKey = "base" | "animagine";
+
+const PICTURE_MODELS = {
+  base: {
+    name: "SDXL Base 1.0",
+    description: "Versatile photoreal, illustrative, and concept-image creation.",
+  },
+  animagine: {
+    name: "Animagine XL 4.0",
+    description: "Expressive anime and illustration-focused image creation.",
+  },
+} as const;
 
 type PublicJob = {
   id: string;
@@ -54,6 +68,37 @@ type PublicJob = {
   createdAt: string;
   completedAt: string | null;
 };
+
+type PublicMedia = {
+  id: string;
+  mediaType: CreationType;
+  status: MediaStatus;
+  modelKey: string;
+  prompt: string;
+  quality: string;
+  width: number;
+  height: number;
+  durationSeconds: number | null;
+  fps: number | null;
+  seed: number;
+  jobId: string | null;
+  hasThumbnail: boolean;
+  hasContent: boolean;
+  errorMessage: string | null;
+  createdAt: string;
+  completedAt: string | null;
+};
+
+function modelName(media: PublicMedia) {
+  if (media.mediaType === "picture") {
+    return PICTURE_MODELS[media.modelKey as PictureModelKey]?.name || media.modelKey;
+  }
+  return AI_VIDEO_MODELS[media.modelKey as AiVideoModelKey]?.name || media.modelKey;
+}
+
+function isPending(status: MediaStatus) {
+  return status === "submitted" || status === "pending";
+}
 
 function formatRemaining(job: PublicJob) {
   if (job.status === "complete") return "Ready to play";
@@ -117,7 +162,7 @@ function ExperimentHeader({ close = false }: { close?: boolean }) {
       <Link
         href={close ? "/experiments/ai-video/library" : "/"}
         className="aiv-close"
-        aria-label={close ? "Close video player" : "Leave AI Video"}
+        aria-label={close ? "Close media viewer" : "Leave AI Video"}
       >
         {close ? <X aria-hidden="true" /> : <ArrowLeft aria-hidden="true" />}
       </Link>
@@ -133,7 +178,7 @@ function SignedOutGate() {
         <span className="aiv-round-icon"><LockKeyhole aria-hidden="true" /></span>
         <p className="aiv-kicker">PRIVATE EXPERIMENT</p>
         <h1>Sign in to enter AI Video.</h1>
-        <p>Your source images, generations, and library stay attached to your account.</p>
+        <p>Your pictures, videos, and library stay attached to your account.</p>
         <Link href="/login?returnTo=/experiments/ai-video">Log in</Link>
         <Link className="aiv-secondary-link" href="/create-account?returnTo=/experiments/ai-video">
           Create account
@@ -157,14 +202,16 @@ function SetupGate() {
   );
 }
 
-function PrivateAsset({
-  jobId,
-  kind,
+function PrivateMediaAsset({
+  mediaId,
+  mediaType,
+  thumbnail = false,
   className,
   children,
 }: {
-  jobId: string;
-  kind: "thumbnail" | "video";
+  mediaId: string;
+  mediaType: CreationType;
+  thumbnail?: boolean;
   className?: string;
   children?: ReactNode;
 }) {
@@ -174,7 +221,8 @@ function PrivateAsset({
   useEffect(() => {
     let active = true;
     let objectUrl = "";
-    authorizedFetch(`/api/experiments/ai-video/jobs/${jobId}/${kind}`)
+    const suffix = thumbnail ? "thumbnail" : "content";
+    authorizedFetch(`/api/experiments/ai-video/media/${mediaId}/${suffix}`)
       .then((response) => {
         if (!response.ok) throw new Error("Media unavailable");
         return response.blob();
@@ -189,79 +237,109 @@ function PrivateAsset({
       active = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [authorizedFetch, jobId, kind]);
+  }, [authorizedFetch, mediaId, thumbnail]);
 
   if (!url) return <>{children}</>;
-  return kind === "video" ? (
+  return mediaType === "video" && !thumbnail ? (
     <video className={className} src={url} controls autoPlay playsInline />
   ) : (
     <img className={className} src={url} alt="" />
   );
 }
 
-function JobCard({ job }: { job: PublicJob }) {
-  const model = AI_VIDEO_MODELS[job.modelKey];
+function PendingBadge({ status }: { status: MediaStatus }) {
   return (
-    <Link href={`/experiments/ai-video/video/${job.id}`} className="aiv-library-card">
+    <span className={`aiv-status ${status}`}>
+      {isPending(status) && <Clock3 aria-hidden="true" />}
+      {status === "submitted" ? "Submitted" : status}
+    </span>
+  );
+}
+
+function MediaCard({ media }: { media: PublicMedia }) {
+  return (
+    <Link href={`/experiments/ai-video/media/${media.id}`} className="aiv-library-card">
       <div className="aiv-thumb">
-        {job.hasThumbnail ? (
-          <PrivateAsset jobId={job.id} kind="thumbnail">
+        {media.hasThumbnail ? (
+          <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType} thumbnail>
             <span className="aiv-thumb-placeholder"><Images aria-hidden="true" /></span>
-          </PrivateAsset>
+          </PrivateMediaAsset>
         ) : (
-          <span className="aiv-thumb-placeholder"><Sparkles aria-hidden="true" /></span>
+          <span className="aiv-thumb-placeholder">
+            {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+          </span>
         )}
-        <span className={`aiv-status ${job.status}`}>{job.status}</span>
-        {job.status === "complete" && <span className="aiv-play"><Play aria-hidden="true" /></span>}
+        <PendingBadge status={media.status} />
+        {media.status === "complete" && media.mediaType === "video" && (
+          <span className="aiv-play"><Play aria-hidden="true" /></span>
+        )}
+        <span className="aiv-media-type">
+          {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+          {media.mediaType}
+        </span>
       </div>
       <div className="aiv-library-copy">
-        <strong>{job.prompt}</strong>
-        <span>{model.name} · {job.durationSeconds}s · {job.quality}</span>
+        <strong>{media.prompt}</strong>
+        <span>
+          {modelName(media)} · {media.mediaType === "video" ? `${media.durationSeconds}s · ` : ""}
+          {media.quality}
+        </span>
       </div>
     </Link>
   );
 }
 
-function useJobs(enabled: boolean) {
+function useMedia(enabled: boolean) {
   const authorizedFetch = useAuthorizedFetch();
-  const [jobs, setJobs] = useState<PublicJob[]>([]);
+  const [media, setMedia] = useState<PublicMedia[]>([]);
   const [loading, setLoading] = useState(enabled);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (!enabled) return;
     let active = true;
-    authorizedFetch("/api/experiments/ai-video/jobs")
-      .then(async (response) => {
-        const data = (await response.json()) as { jobs?: PublicJob[]; error?: string };
+    let timer = 0;
+    const load = async () => {
+      try {
+        const response = await authorizedFetch("/api/experiments/ai-video/media");
+        const data = (await response.json()) as { media?: PublicMedia[]; error?: string };
         if (!response.ok) throw new Error(data.error || "Library unavailable.");
-        if (active) setJobs(data.jobs || []);
-      })
-      .catch((loadError) => {
+        if (!active) return;
+        const items = data.media || [];
+        setMedia(items);
+        setError("");
+        if (items.some((item) => isPending(item.status))) {
+          timer = window.setTimeout(load, 5_000);
+        }
+      } catch (loadError) {
         if (active) {
           setError(loadError instanceof Error ? loadError.message : "Library unavailable.");
         }
-      })
-      .finally(() => {
+      } finally {
         if (active) setLoading(false);
-      });
-    return () => { active = false; };
+      }
+    };
+    void load();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
   }, [authorizedFetch, enabled]);
-  return { jobs, loading, error };
+  return { media, loading, error };
 }
 
 function HomeView() {
-  const { jobs, loading } = useJobs(true);
+  const { media, loading } = useMedia(true);
   return (
     <main className="aiv-page">
       <ExperimentHeader />
       <section className="aiv-hero">
         <div>
           <p className="aiv-kicker">PRIVATE CREATIVE LAB</p>
-          <h1>Give a still image somewhere to go.</h1>
-          <p>Choose a model, set the motion, and let your private GPU workspace build the shot.</p>
+          <h1>Create a picture. Give it somewhere to go.</h1>
+          <p>Generate still images or build private video shots with the models connected to your playground.</p>
           <div className="aiv-actions">
-            <Link href="/experiments/ai-video/create"><WandSparkles aria-hidden="true" /> Create video</Link>
+            <Link href="/experiments/ai-video/create"><WandSparkles aria-hidden="true" /> Create media</Link>
             <Link href="/experiments/ai-video/library" className="secondary"><Library aria-hidden="true" /> Open library</Link>
           </div>
         </div>
@@ -270,28 +348,26 @@ function HomeView() {
           <Clapperboard />
         </div>
       </section>
-
       <section className="aiv-model-section">
         <div className="aiv-section-title">
-          <div><p className="aiv-kicker">AVAILABLE MODELS</p><h2>Two different ways to move.</h2></div>
-          <Link href="/experiments/ai-video/create">Compare in create <span>→</span></Link>
+          <div><p className="aiv-kicker">AVAILABLE MODES</p><h2>Pictures and motion.</h2></div>
+          <Link href="/experiments/ai-video/create">Open create <span>→</span></Link>
         </div>
         <div className="aiv-model-grid">
-          {Object.values(AI_VIDEO_MODELS).map((model) => (
-            <article key={model.key}>
-              <span>{model.supportsImage ? "IMAGE → VIDEO" : "TEXT + AUDIO → VIDEO"}</span>
-              <h3>{model.name}</h3>
-              <p>{model.description}</p>
-              <div>
-                {Object.values(model.qualities).map((quality) => <b key={quality.label}>{quality.label}</b>)}
-                <b>5s</b><b>10s</b>
-                {model.supportsAudio && <b>Audio</b>}
-              </div>
-            </article>
-          ))}
+          <article>
+            <span>PICTURE</span>
+            <h3>Local image models</h3>
+            <p>Use SDXL Base or Animagine to create a private still on your connected GPU.</p>
+            <div><b>1024 × 576</b><b>SDXL</b><b>Animagine</b></div>
+          </article>
+          <article>
+            <span>VIDEO</span>
+            <h3>Wan + LTX</h3>
+            <p>Create image-guided motion with Wan or text-and-audio video with LTX.</p>
+            <div><b>480p</b><b>720p</b><b>5s</b><b>10s</b></div>
+          </article>
         </div>
       </section>
-
       <section className="aiv-recent">
         <div className="aiv-section-title">
           <div><p className="aiv-kicker">YOUR RECENT WORK</p><h2>Private by default.</h2></div>
@@ -299,13 +375,15 @@ function HomeView() {
         </div>
         {loading ? (
           <div className="aiv-empty">Loading your library…</div>
-        ) : jobs.length ? (
-          <div className="aiv-library-grid">{jobs.slice(0, 3).map((job) => <JobCard job={job} key={job.id} />)}</div>
+        ) : media.length ? (
+          <div className="aiv-library-grid">
+            {media.slice(0, 3).map((item) => <MediaCard media={item} key={item.id} />)}
+          </div>
         ) : (
           <div className="aiv-empty">
             <Clapperboard aria-hidden="true" />
-            <strong>No videos yet.</strong>
-            <span>Your first generation will appear here.</span>
+            <strong>No media yet.</strong>
+            <span>Your first picture or video will appear here.</span>
           </div>
         )}
       </section>
@@ -321,26 +399,27 @@ function ProgressPanel({ initialJob }: { initialJob: PublicJob }) {
   useEffect(() => {
     if (job.status === "complete" || job.status === "failed") return;
     let active = true;
+    let timer = 0;
     const poll = async () => {
       try {
         const response = await authorizedFetch(`/api/experiments/ai-video/jobs/${job.id}`);
         const data = (await response.json()) as { job?: PublicJob };
         if (active && data.job) setJob(data.job);
       } finally {
-        if (active) window.setTimeout(poll, 3_000);
+        if (active) timer = window.setTimeout(poll, 3_000);
       }
     };
-    const timer = window.setTimeout(poll, 2_000);
+    timer = window.setTimeout(poll, 2_000);
     return () => { active = false; window.clearTimeout(timer); };
   }, [authorizedFetch, job.id, job.status]);
 
   return (
     <section className="aiv-progress-panel">
       <span className={`aiv-progress-icon ${job.status}`}>
-        {job.status === "complete" ? <Check aria-hidden="true" /> : <Clapperboard aria-hidden="true" />}
+        {job.status === "complete" ? <Check aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
       </span>
-      <p className="aiv-kicker">{job.status === "complete" ? "VIDEO READY" : "GENERATION IN PROGRESS"}</p>
-      <h1>{job.status === "complete" ? "Your shot is ready." : "Making motion from your idea."}</h1>
+      <p className="aiv-kicker">{job.status === "complete" ? "VIDEO READY" : "PENDING"}</p>
+      <h1>{job.status === "complete" ? "Your shot is ready." : "Your video was submitted."}</h1>
       <p>{job.errorMessage || formatRemaining(job)}</p>
       <div
         className="aiv-progress-track"
@@ -358,7 +437,7 @@ function ProgressPanel({ initialJob }: { initialJob: PublicJob }) {
       </div>
       <div className="aiv-actions">
         {job.status === "complete" ? (
-          <Link href={`/experiments/ai-video/video/${job.id}`}><Play aria-hidden="true" /> Play video</Link>
+          <Link href={`/experiments/ai-video/media/${job.id}`}><Play aria-hidden="true" /> View video</Link>
         ) : (
           <Link href="/experiments/ai-video"><House aria-hidden="true" /> Return home</Link>
         )}
@@ -368,17 +447,27 @@ function ProgressPanel({ initialJob }: { initialJob: PublicJob }) {
   );
 }
 
+function PicturePending() {
+  return (
+    <section className="aiv-progress-panel">
+      <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
+      <p className="aiv-kicker">PENDING</p>
+      <h1>Your picture was submitted.</h1>
+      <p>Your local GPU is creating it now. Keep this screen open until the result is saved.</p>
+      <div className="aiv-picture-loader" aria-label="Picture generation pending"><span /></div>
+    </section>
+  );
+}
+
 function CreateView() {
   const authorizedFetch = useAuthorizedFetch();
   const { user } = useUser();
-  const [modelKey, setModelKey] = useState<AiVideoModelKey>("wan22");
-  const model = AI_VIDEO_MODELS[modelKey];
+  const [creationType, setCreationType] = useState<CreationType>("picture");
+  const [pictureModel, setPictureModel] = useState<PictureModelKey>("base");
+  const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
+  const videoModel = AI_VIDEO_MODELS[videoModelKey];
   const [quality, setQuality] = useState("480p");
   const [duration, setDuration] = useState("5");
-  const [sourceMode, setSourceMode] = useState<"upload" | "local">("upload");
-  const [localSourceModel, setLocalSourceModel] = useState<"base" | "animagine">("base");
-  const [localSourcePrompt, setLocalSourcePrompt] = useState("");
-  const [localGenerating, setLocalGenerating] = useState(false);
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -386,58 +475,23 @@ function CreateView() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [job, setJob] = useState<PublicJob | null>(null);
+  const [createdMedia, setCreatedMedia] = useState<PublicMedia | null>(null);
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
 
-  function chooseModel(next: AiVideoModelKey) {
-    setModelKey(next);
+  function chooseCreationType(next: CreationType) {
+    setCreationType(next);
+    setError("");
+    setSource(null);
+    setPrompt("");
+    setNegativePrompt("");
+  }
+
+  function chooseVideoModel(next: AiVideoModelKey) {
+    setVideoModelKey(next);
     setQuality(next === "wan22" ? "480p" : "standard");
     if (next === "ltx23") setSource(null);
-  }
-
-  function chooseSourceMode(next: "upload" | "local") {
-    setSourceMode(next);
-    setSource(null);
-    setError("");
-  }
-
-  async function generateLocalSource() {
-    setError("");
-    setLocalGenerating(true);
-    try {
-      const response = await authorizedFetch(
-        "/api/experiments/ai-video/local-source",
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            prompt: localSourcePrompt,
-            model: localSourceModel,
-          }),
-        },
-      );
-      if (!response.ok) {
-        const data = (await response.json().catch(() => ({}))) as {
-          error?: string;
-        };
-        throw new Error(data.error || "The local GPU could not generate a source image.");
-      }
-      const blob = await response.blob();
-      setSource(
-        new File([blob], `local-${localSourceModel}-source.png`, {
-          type: blob.type || "image/png",
-        }),
-      );
-    } catch (localError) {
-      setError(
-        localError instanceof Error
-          ? localError.message
-          : "The local GPU is unavailable.",
-      );
-    } finally {
-      setLocalGenerating(false);
-    }
   }
 
   async function submit(event: FormEvent) {
@@ -445,15 +499,39 @@ function CreateView() {
     setError("");
     setSubmitting(true);
     try {
+      if (creationType === "picture") {
+        const response = await authorizedFetch(
+          "/api/experiments/ai-video/local-source",
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              prompt,
+              negativePrompt,
+              model: pictureModel,
+              seed,
+              displayName: user?.fullName || "",
+              email: user?.primaryEmailAddress?.emailAddress || "",
+              avatarUrl: user?.imageUrl || "",
+            }),
+          },
+        );
+        const data = (await response.json()) as { media?: PublicMedia; error?: string };
+        if (!response.ok || !data.media) {
+          throw new Error(data.error || "Picture generation could not finish.");
+        }
+        setCreatedMedia(data.media);
+        return;
+      }
+
       const form = new FormData();
-      form.set("modelKey", modelKey);
+      form.set("modelKey", videoModelKey);
       form.set("quality", quality);
       form.set("duration", duration);
       form.set("prompt", prompt);
       form.set("negativePrompt", negativePrompt);
       form.set("seed", String(seed));
-      form.set("sourceProvider", model.supportsImage ? sourceMode : "none");
-      form.set("sourceModelKey", sourceMode === "local" ? localSourceModel : "");
+      form.set("sourceProvider", videoModel.supportsImage ? "upload" : "none");
       if (source) form.set("sourceImage", source);
       form.set("displayName", user?.fullName || "");
       form.set("email", user?.primaryEmailAddress?.emailAddress || "");
@@ -463,10 +541,14 @@ function CreateView() {
         body: form,
       });
       const data = (await response.json()) as { job?: PublicJob; error?: string };
-      if (!response.ok || !data.job) throw new Error(data.error || "Generation could not start.");
+      if (!response.ok || !data.job) {
+        throw new Error(data.error || "Video generation could not start.");
+      }
       setJob(data.job);
     } catch (submitError) {
-      setError(submitError instanceof Error ? submitError.message : "Generation could not start.");
+      setError(
+        submitError instanceof Error ? submitError.message : "Generation could not start.",
+      );
     } finally {
       setSubmitting(false);
     }
@@ -481,6 +563,18 @@ function CreateView() {
       </main>
     );
   }
+  if (submitting && creationType === "picture") {
+    return (
+      <main className="aiv-page">
+        <ExperimentHeader />
+        <PicturePending />
+        <BottomNavigation />
+      </main>
+    );
+  }
+  if (createdMedia) {
+    return <MediaView mediaId={createdMedia.id} initialMedia={createdMedia} />;
+  }
 
   return (
     <main className="aiv-page">
@@ -488,151 +582,163 @@ function CreateView() {
       <form className="aiv-create" onSubmit={submit}>
         <div className="aiv-create-heading">
           <p className="aiv-kicker">CREATE</p>
-          <h1>Build your next shot.</h1>
-          <p>Everything you make here is saved privately to your account.</p>
+          <h1>Make something new.</h1>
+          <p>Everything you submit is logged and saved privately to your account.</p>
+          <div className="aiv-type-pill" role="group" aria-label="Creation type">
+            <button
+              type="button"
+              className={creationType === "picture" ? "selected" : ""}
+              aria-pressed={creationType === "picture"}
+              onClick={() => chooseCreationType("picture")}
+            >
+              <PictureIcon aria-hidden="true" /> Picture
+            </button>
+            <button
+              type="button"
+              className={creationType === "video" ? "selected" : ""}
+              aria-pressed={creationType === "video"}
+              onClick={() => chooseCreationType("video")}
+            >
+              <Video aria-hidden="true" /> Video
+            </button>
+          </div>
         </div>
 
         <section className="aiv-form-section">
-          <div className="aiv-step"><span>1</span><div><strong>Choose a model</strong><small>Each model has a different strength.</small></div></div>
+          <div className="aiv-step">
+            <span>1</span>
+            <div><strong>Choose a model</strong><small>Only models available for {creationType} creation are shown.</small></div>
+          </div>
           <div className="aiv-choice-grid">
-            {(Object.keys(AI_VIDEO_MODELS) as AiVideoModelKey[]).map((key) => {
-              const option = AI_VIDEO_MODELS[key];
-              return (
-                <button type="button" key={key} className={modelKey === key ? "selected" : ""} onClick={() => chooseModel(key)}>
-                  <span>{option.supportsImage ? "IMAGE-GUIDED" : "TEXT + AUDIO"}</span>
-                  <strong>{option.name}</strong>
-                  <small>{option.description}</small>
-                  {modelKey === key && <Check aria-hidden="true" />}
-                </button>
-              );
-            })}
+            {creationType === "picture"
+              ? (Object.keys(PICTURE_MODELS) as PictureModelKey[]).map((key) => {
+                  const option = PICTURE_MODELS[key];
+                  return (
+                    <button type="button" key={key} className={pictureModel === key ? "selected" : ""} onClick={() => setPictureModel(key)}>
+                      <span>PICTURE</span>
+                      <strong>{option.name}</strong>
+                      <small>{option.description}</small>
+                      {pictureModel === key && <Check aria-hidden="true" />}
+                    </button>
+                  );
+                })
+              : (Object.keys(AI_VIDEO_MODELS) as AiVideoModelKey[]).map((key) => {
+                  const option = AI_VIDEO_MODELS[key];
+                  return (
+                    <button type="button" key={key} className={videoModelKey === key ? "selected" : ""} onClick={() => chooseVideoModel(key)}>
+                      <span>{option.supportsImage ? "IMAGE-GUIDED" : "TEXT + AUDIO"}</span>
+                      <strong>{option.name}</strong>
+                      <small>{option.description}</small>
+                      {videoModelKey === key && <Check aria-hidden="true" />}
+                    </button>
+                  );
+                })}
           </div>
         </section>
 
         <section className="aiv-form-section">
-          <div className="aiv-step"><span>2</span><div><strong>{model.supportsImage ? "Add your source image" : "Describe the whole scene"}</strong><small>{model.supportsImage ? "JPG, PNG, or WebP up to 12 MB." : "LTX 2.3 currently creates from text and includes audio."}</small></div></div>
-          {model.supportsImage && (
-            <>
-              <label className="aiv-provider-select">
-                <span>Source provider</span>
-                <select
-                  value={sourceMode}
-                  onChange={(event) =>
-                    chooseSourceMode(event.target.value as "upload" | "local")
-                  }
-                >
-                  <option value="upload">Upload an image</option>
-                  <option value="local">Local GPU · ComfyUI</option>
-                </select>
-              </label>
-              {sourceMode === "upload" ? (
-                <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
-                  {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
-                  <strong>{source ? source.name : "Choose source image"}</strong>
-                  <span>{source ? "Click to replace" : "The composition anchors the generated motion."}</span>
-                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setSource(event.target.files?.[0] || null)} required />
-                </label>
-              ) : (
-                <div className="aiv-local-source">
-                  <div className="aiv-local-source-top">
-                    <span><Cpu aria-hidden="true" /></span>
-                    <div>
-                      <strong>Generate the source on your local GPU</strong>
-                      <small>The finished still is handed privately to Wan 2.2 for animation.</small>
-                    </div>
-                  </div>
-                  <label className="aiv-provider-select">
-                    <span>Local image model</span>
-                    <select
-                      value={localSourceModel}
-                      onChange={(event) =>
-                        setLocalSourceModel(
-                          event.target.value as "base" | "animagine",
-                        )
-                      }
-                    >
-                      <option value="base">SDXL Base 1.0</option>
-                      <option value="animagine">Animagine XL 4.0</option>
-                    </select>
-                  </label>
-                  <label className="aiv-field">
-                    <span>Source image prompt</span>
-                    <textarea
-                      value={localSourcePrompt}
-                      onChange={(event) => setLocalSourcePrompt(event.target.value)}
-                      placeholder="A cinematic portrait in warm window light, composed for subtle motion…"
-                      maxLength={2000}
-                    />
-                  </label>
-                  {preview && (
-                    <div className="aiv-local-preview">
-                      <img src={preview} alt="Locally generated source" />
-                      <span><Check aria-hidden="true" /> Source ready</span>
-                    </div>
-                  )}
-                  <button
-                    className="aiv-local-generate"
-                    type="button"
-                    disabled={localGenerating || !localSourcePrompt}
-                    onClick={generateLocalSource}
-                  >
-                    <Cpu aria-hidden="true" />
-                    {localGenerating
-                      ? "Local GPU is generating…"
-                      : source
-                        ? "Regenerate source"
-                        : "Generate source locally"}
-                  </button>
-                  {localGenerating && (
-                    <p className="aiv-local-note">
-                      ComfyUI can take several minutes. Keep this page open until the preview appears.
-                    </p>
-                  )}
-                </div>
-              )}
-            </>
+          <div className="aiv-step">
+            <span>2</span>
+            <div>
+              <strong>
+                {creationType === "picture"
+                  ? "Describe the picture"
+                  : videoModel.supportsImage
+                    ? "Add an image and describe the motion"
+                    : "Describe the whole scene"}
+              </strong>
+              <small>
+                {creationType === "picture"
+                  ? "Your connected picture model will create a private 1024 × 576 image."
+                  : videoModel.supportsImage
+                    ? "Upload a JPG, PNG, or WebP up to 12 MB."
+                    : "LTX creates from text and includes audio."}
+              </small>
+            </div>
+          </div>
+          {creationType === "video" && videoModel.supportsImage && (
+            <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
+              {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
+              <strong>{source ? source.name : "Choose source image"}</strong>
+              <span>{source ? "Click to replace" : "The composition anchors the generated motion."}</span>
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                onChange={(event) => setSource(event.target.files?.[0] || null)}
+                required
+              />
+            </label>
           )}
           <label className="aiv-field">
-            <span>Motion prompt</span>
-            <textarea value={prompt} onChange={(event) => setPrompt(event.target.value)} placeholder={model.supportsImage ? "A slow cinematic push-in as wind moves through the scene…" : "A wide cinematic view of a neon city waking at dawn, with distant traffic and soft rain…"} maxLength={2000} required />
+            <span>{creationType === "picture" ? "Picture prompt" : "Video prompt"}</span>
+            <textarea
+              value={prompt}
+              onChange={(event) => setPrompt(event.target.value)}
+              placeholder={
+                creationType === "picture"
+                  ? "A cinematic portrait in warm window light, rich texture, editorial composition…"
+                  : videoModel.supportsImage
+                    ? "A slow cinematic push-in as wind moves through the scene…"
+                    : "A wide neon city waking at dawn, with distant traffic and soft rain…"
+              }
+              maxLength={2000}
+              required
+            />
             <small>{prompt.length}/2000</small>
           </label>
-          {model.supportsImage && (
+          {(creationType === "picture" || videoModel.supportsImage) && (
             <label className="aiv-field compact">
               <span>Negative prompt <i>optional</i></span>
-              <input value={negativePrompt} onChange={(event) => setNegativePrompt(event.target.value)} placeholder="Distortion, flicker, abrupt camera motion" />
+              <input
+                value={negativePrompt}
+                onChange={(event) => setNegativePrompt(event.target.value)}
+                placeholder={creationType === "picture" ? "Blur, low detail, distorted anatomy" : "Distortion, flicker, abrupt camera motion"}
+              />
             </label>
           )}
         </section>
 
         <section className="aiv-form-section">
-          <div className="aiv-step"><span>3</span><div><strong>Set the output</strong><small>Higher quality takes longer to process.</small></div></div>
+          <div className="aiv-step"><span>3</span><div><strong>Set the output</strong><small>Your media record is created with Submitted status first.</small></div></div>
           <div className="aiv-setting-row">
             <fieldset>
               <legend>Quality</legend>
               <div>
-                {Object.entries(model.qualities).map(([key, option]) => (
-                  <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => setQuality(key)} /><span>{option.label}</span></label>
-                ))}
+                {creationType === "picture" ? (
+                  <label><input type="radio" checked readOnly /><span>1024 × 576</span></label>
+                ) : (
+                  Object.entries(videoModel.qualities).map(([key, option]) => (
+                    <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => setQuality(key)} /><span>{option.label}</span></label>
+                  ))
+                )}
               </div>
             </fieldset>
-            <fieldset>
-              <legend>Duration</legend>
-              <div>
-                {Object.entries(model.durations).map(([key, option]) => (
-                  <label key={key}><input type="radio" name="duration" checked={duration === key} onChange={() => setDuration(key)} /><span>{option.seconds}s</span></label>
-                ))}
-              </div>
-            </fieldset>
+            {creationType === "video" && (
+              <fieldset>
+                <legend>Duration</legend>
+                <div>
+                  {Object.entries(videoModel.durations).map(([key, option]) => (
+                    <label key={key}><input type="radio" name="duration" checked={duration === key} onChange={() => setDuration(key)} /><span>{option.seconds}s</span></label>
+                  ))}
+                </div>
+              </fieldset>
+            )}
             <label className="aiv-seed">Seed<input type="number" min="0" step="1" value={seed} onChange={(event) => setSeed(Number(event.target.value))} /></label>
           </div>
         </section>
 
         {error && <p className="aiv-form-error" role="alert">{error}</p>}
         <div className="aiv-create-submit">
-          <div><Clock3 aria-hidden="true" /><span>Estimated time is shown after submission. Cold starts can add several minutes.</span></div>
-          <button type="submit" disabled={submitting || !prompt || (model.supportsImage && !source)}>
-            {submitting ? "Sending to GPU…" : "Create video"} <WandSparkles aria-hidden="true" />
+          <div><Clock3 aria-hidden="true" /><span>After submission, pending work appears immediately in your private library.</span></div>
+          <button
+            type="submit"
+            disabled={
+              submitting ||
+              !prompt ||
+              (creationType === "video" && videoModel.supportsImage && !source)
+            }
+          >
+            {submitting ? "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
           </button>
         </div>
       </form>
@@ -642,25 +748,46 @@ function CreateView() {
 }
 
 function LibraryView() {
-  const { jobs, loading, error } = useJobs(true);
+  const { media, loading, error } = useMedia(true);
+  const [filter, setFilter] = useState<"all" | CreationType>("all");
+  const filtered = filter === "all" ? media : media.filter((item) => item.mediaType === filter);
   return (
     <main className="aiv-page">
       <ExperimentHeader />
       <section className="aiv-library">
         <div className="aiv-section-title">
-          <div><p className="aiv-kicker">PRIVATE LIBRARY</p><h1>Your generated videos.</h1><p>Only your signed-in account can load these files.</p></div>
-          <Link href="/experiments/ai-video/create"><Plus aria-hidden="true" /> New video</Link>
+          <div><p className="aiv-kicker">PRIVATE LIBRARY</p><h1>All your media.</h1><p>Pictures and videos are private to your signed-in account.</p></div>
+          <Link href="/experiments/ai-video/create"><Plus aria-hidden="true" /> New media</Link>
+        </div>
+        <div className="aiv-library-filter" role="group" aria-label="Filter library by media type">
+          {(["all", "picture", "video"] as const).map((option) => (
+            <button
+              type="button"
+              key={option}
+              className={filter === option ? "selected" : ""}
+              aria-pressed={filter === option}
+              onClick={() => setFilter(option)}
+            >
+              {option === "picture" && <PictureIcon aria-hidden="true" />}
+              {option === "video" && <Video aria-hidden="true" />}
+              {option}
+            </button>
+          ))}
         </div>
         {loading ? (
           <div className="aiv-empty">Loading your library…</div>
         ) : error ? (
           <div className="aiv-empty"><strong>Library unavailable</strong><span>{error}</span></div>
-        ) : jobs.length ? (
-          <div className="aiv-library-grid">{jobs.map((job) => <JobCard job={job} key={job.id} />)}</div>
+        ) : filtered.length ? (
+          <div className="aiv-library-grid">
+            {filtered.map((item) => <MediaCard media={item} key={item.id} />)}
+          </div>
         ) : (
           <div className="aiv-empty">
-            <Images aria-hidden="true" /><strong>Your library is empty.</strong><span>Create a video and it will be saved here automatically.</span>
-            <Link href="/experiments/ai-video/create">Create your first video</Link>
+            <Images aria-hidden="true" />
+            <strong>{filter === "all" ? "Your library is empty." : `No ${filter}s yet.`}</strong>
+            <span>Submit a picture or video and it will appear here automatically.</span>
+            <Link href="/experiments/ai-video/create">Create your first item</Link>
           </div>
         )}
       </section>
@@ -669,47 +796,78 @@ function LibraryView() {
   );
 }
 
-function PlayerView({ jobId }: { jobId: string }) {
+function MediaView({
+  mediaId,
+  initialMedia = null,
+}: {
+  mediaId: string;
+  initialMedia?: PublicMedia | null;
+}) {
   const authorizedFetch = useAuthorizedFetch();
-  const [job, setJob] = useState<PublicJob | null>(null);
+  const [media, setMedia] = useState<PublicMedia | null>(initialMedia);
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (media?.status === "complete" || media?.status === "failed") return;
     let active = true;
-    authorizedFetch(`/api/experiments/ai-video/jobs/${jobId}`)
-      .then(async (response) => {
-        const data = (await response.json()) as { job?: PublicJob; error?: string };
-        if (!response.ok || !data.job) throw new Error(data.error || "Video unavailable.");
-        if (active) setJob(data.job);
-      })
-      .catch((loadError) => active && setError(loadError instanceof Error ? loadError.message : "Video unavailable."));
-    return () => { active = false; };
-  }, [authorizedFetch, jobId]);
+    let timer = 0;
+    const load = async () => {
+      try {
+        const response = await authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`);
+        const data = (await response.json()) as { media?: PublicMedia; error?: string };
+        if (!response.ok || !data.media) throw new Error(data.error || "Media unavailable.");
+        if (!active) return;
+        setMedia(data.media);
+        if (isPending(data.media.status)) timer = window.setTimeout(load, 3_000);
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Media unavailable.");
+      }
+    };
+    void load();
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [authorizedFetch, media?.status, mediaId]);
 
   return (
     <main className="aiv-player-page">
       <ExperimentHeader close />
       {error ? (
-        <section className="aiv-player-message"><strong>Video unavailable</strong><span>{error}</span><Link href="/experiments/ai-video/library">Return to library</Link></section>
-      ) : !job ? (
-        <section className="aiv-player-message">Loading private video…</section>
-      ) : job.status !== "complete" ? (
-        <ProgressPanel initialJob={job} />
+        <section className="aiv-player-message"><strong>Media unavailable</strong><span>{error}</span><Link href="/experiments/ai-video/library">Return to library</Link></section>
+      ) : !media ? (
+        <section className="aiv-player-message">Loading private media…</section>
+      ) : isPending(media.status) ? (
+        <section className="aiv-progress-panel">
+          <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
+          <p className="aiv-kicker">PENDING</p>
+          <h1>Your {media.mediaType} was submitted.</h1>
+          <p>It will appear here as soon as processing finishes.</p>
+          <div className="aiv-picture-loader" aria-label="Media generation pending"><span /></div>
+          <div className="aiv-actions"><Link href="/experiments/ai-video/library"><Library aria-hidden="true" /> Library</Link></div>
+        </section>
+      ) : media.status === "failed" ? (
+        <section className="aiv-player-message"><strong>Generation stopped</strong><span>{media.errorMessage || "This item could not be completed."}</span><Link href="/experiments/ai-video/create">Try again</Link></section>
       ) : (
         <section className="aiv-player">
-          <div className="aiv-video-stage">
-            <PrivateAsset jobId={job.id} kind="video" className="aiv-video">
-              <div className="aiv-player-message">Preparing secure playback…</div>
-            </PrivateAsset>
+          <div className={`aiv-video-stage ${media.mediaType === "picture" ? "picture" : ""}`}>
+            <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType} className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}>
+              <div className="aiv-player-message">Preparing secure {media.mediaType}…</div>
+            </PrivateMediaAsset>
           </div>
           <div className="aiv-player-info">
-            <div><p className="aiv-kicker">{AI_VIDEO_MODELS[job.modelKey].name}</p><h1>{job.prompt}</h1></div>
-            <span>{job.width} × {job.height} · {job.durationSeconds}s · Seed {job.seed}</span>
+            <div><p className="aiv-kicker">{modelName(media)}</p><h1>{media.prompt}</h1></div>
+            <span>
+              {media.width} × {media.height}
+              {media.durationSeconds ? ` · ${media.durationSeconds}s` : ""}
+              {" · "}Seed {media.seed}
+            </span>
           </div>
         </section>
       )}
     </main>
   );
+}
+
+function PlayerView({ jobId }: { jobId: string }) {
+  return <MediaView mediaId={jobId} />;
 }
 
 function ConfiguredAiVideoApp({ view, jobId }: { view: View; jobId?: string }) {
@@ -718,7 +876,7 @@ function ConfiguredAiVideoApp({ view, jobId }: { view: View; jobId?: string }) {
   if (!isSignedIn) return <SignedOutGate />;
   if (view === "create") return <CreateView />;
   if (view === "library") return <LibraryView />;
-  if (view === "player" && jobId) return <PlayerView jobId={jobId} />;
+  if ((view === "player" || view === "media") && jobId) return <PlayerView jobId={jobId} />;
   return <HomeView />;
 }
 

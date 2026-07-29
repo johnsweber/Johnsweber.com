@@ -73,3 +73,42 @@ export const aiVideoJobs = sqliteTable(
     uniqueIndex("ai_video_jobs_modal_call_uq").on(table.modalCallId),
   ],
 );
+
+// Unified, user-owned library for every asset created inside the AI Video
+// experiment. Provider-specific execution details stay in their own job tables.
+export const aiVideoMedia = sqliteTable(
+  "ai_video_media",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    mediaType: text("media_type").notNull(),
+    status: text("status").notNull().default("submitted"),
+    modelKey: text("model_key").notNull(),
+    prompt: text("prompt").notNull(),
+    negativePrompt: text("negative_prompt"),
+    quality: text("quality").notNull(),
+    width: integer("width").notNull(),
+    height: integer("height").notNull(),
+    durationSeconds: integer("duration_seconds"),
+    fps: integer("fps"),
+    seed: integer("seed").notNull(),
+    jobId: text("job_id"),
+    thumbnailObjectKey: text("thumbnail_object_key"),
+    contentObjectKey: text("content_object_key"),
+    contentMimeType: text("content_mime_type"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("ai_video_media_user_created_idx").on(table.userId, table.createdAt),
+    index("ai_video_media_user_type_created_idx").on(
+      table.userId,
+      table.mediaType,
+      table.createdAt,
+    ),
+    index("ai_video_media_user_status_idx").on(table.userId, table.status),
+    uniqueIndex("ai_video_media_job_uq").on(table.jobId),
+  ],
+);

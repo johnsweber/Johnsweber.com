@@ -1,7 +1,11 @@
 import {
   getAiVideoJob,
   getAiVideoMedia,
+  getAiVideoMediaByJob,
+  getAiVideoMediaItem,
+  type AiVideoMedia,
   type AiVideoJob,
+  updateAiVideoMedia,
   updateAiVideoJob,
 } from "@/db/ai-video";
 import { getModelConfig } from "./ai-video-models";
@@ -49,6 +53,28 @@ export function publicAiVideoJob(job: AiVideoJob) {
   };
 }
 
+export function publicAiVideoMedia(media: AiVideoMedia) {
+  return {
+    id: media.id,
+    mediaType: media.media_type,
+    status: media.status,
+    modelKey: media.model_key,
+    prompt: media.prompt,
+    quality: media.quality,
+    width: media.width,
+    height: media.height,
+    durationSeconds: media.duration_seconds,
+    fps: media.fps,
+    seed: media.seed,
+    jobId: media.job_id,
+    hasThumbnail: Boolean(media.thumbnail_object_key),
+    hasContent: Boolean(media.content_object_key),
+    errorMessage: media.error_message,
+    createdAt: media.created_at,
+    completedAt: media.completed_at,
+  };
+}
+
 export async function refreshAiVideoJob(job: AiVideoJob) {
   if (
     job.status === "complete" ||
@@ -85,6 +111,13 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
         status: "failed",
         error_message: message,
       });
+      const media = await getAiVideoMediaByJob(job.id, job.user_id);
+      if (media) {
+        await updateAiVideoMedia(media.id, job.user_id, {
+          status: "failed",
+          error_message: message,
+        });
+      }
       return (await getAiVideoJob(job.id, job.user_id)) || job;
     }
 
@@ -118,6 +151,16 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
       completed_at: completedAt,
       error_message: null,
     });
+    const media = await getAiVideoMediaByJob(job.id, job.user_id);
+    if (media) {
+      await updateAiVideoMedia(media.id, job.user_id, {
+        status: "complete",
+        content_object_key: outputKey,
+        content_mime_type: contentType,
+        error_message: null,
+        completed_at: completedAt,
+      });
+    }
     return (await getAiVideoJob(job.id, job.user_id)) || job;
   } catch {
     await updateAiVideoJob(job.id, job.user_id, {
@@ -126,4 +169,21 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
     });
     return (await getAiVideoJob(job.id, job.user_id)) || job;
   }
+}
+
+export async function refreshAiVideoMediaItem(media: AiVideoMedia) {
+  if (
+    media.media_type !== "video" ||
+    !media.job_id ||
+    media.status === "complete" ||
+    media.status === "failed"
+  ) {
+    return media;
+  }
+  const job = await getAiVideoJob(media.job_id, media.user_id);
+  if (!job) return media;
+  await refreshAiVideoJob(job);
+  return (
+    (await getAiVideoMediaItem(media.id, media.user_id)) || media
+  );
 }

@@ -70,12 +70,16 @@ test("renders the protected AI Video experiment gate", async () => {
   assert.doesNotMatch(html, /source images, generations, and library stay attached/i);
 });
 
-test("offers the local ComfyUI source provider", async () => {
+test("separates picture and video creation models", async () => {
   const source = await readFile(
     new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
     "utf8",
   );
-  assert.match(source, /Local GPU · ComfyUI/);
+  assert.match(source, /Creation type/);
+  assert.match(source, /> Picture/);
+  assert.match(source, /> Video/);
   assert.match(source, /SDXL Base 1\.0/);
   assert.match(source, /Animagine XL 4\.0/);
+  assert.match(source, /Wan \+ LTX/);
+  assert.doesNotMatch(source, /sourceMode|Generate source locally/);
 });

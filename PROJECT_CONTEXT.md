@@ -64,8 +64,12 @@ Public/general:
 AI Video experiment (login required):
 
 - `/experiments/ai-video` — experiment home.
-- `/experiments/ai-video/create` — generation form and progress.
-- `/experiments/ai-video/library` — private user library with thumbnails.
+- `/experiments/ai-video/create` — Picture/Video pill selector, generation
+  forms, and submitted/pending result states.
+- `/experiments/ai-video/library` — unified private picture/video library with
+  All, Picture, and Video filters.
+- `/experiments/ai-video/media/:id` — private picture or video viewer with a
+  pending state.
 - `/experiments/ai-video/video/:id` — private video player.
 - Bottom navigation provides Home, Create, Library, and placeholders.
 
@@ -76,6 +80,10 @@ AI Video APIs:
 - `GET /api/experiments/ai-video/jobs/:id/thumbnail`
 - `GET /api/experiments/ai-video/jobs/:id/video`
 - `POST /api/experiments/ai-video/local-source`
+- `GET /api/experiments/ai-video/media`
+- `GET /api/experiments/ai-video/media/:id`
+- `GET /api/experiments/ai-video/media/:id/content`
+- `GET /api/experiments/ai-video/media/:id/thumbnail`
 
 ## AI Video providers and flow
 
@@ -92,24 +100,29 @@ Video models are declared in `lib/ai-video-models.ts`.
   - Approximately 5 or 10 seconds at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
 
-Wan source-image choices use the same create UI:
+Picture creation uses the protected local GPU/ComfyUI connection:
 
-- Upload JPG, PNG, or WebP, maximum 12 MB.
-- Local GPU/ComfyUI via `POST /local-source`:
-  - SDXL Base 1.0 (`base`)
-  - Animagine XL 4.0 (`animagine`)
-  - Generates a `1024x576` still, returns it privately to the browser, and the
-    browser submits that still to the Wan job route.
+- SDXL Base 1.0 (`base`)
+- Animagine XL 4.0 (`animagine`)
+- Both currently generate `1024x576` private pictures.
+
+Video creation does not expose the local GPU. Wan accepts an uploaded JPG, PNG,
+or WebP source image up to 12 MB; LTX creates directly from text.
 
 Job lifecycle:
 
-1. Authenticated form submission creates a user-owned D1 job.
-2. Source media is saved beneath the user's private R2 prefix.
-3. Worker submits `/generate` to the selected protected Modal endpoint.
-4. The UI polls the job route; progress is estimated from elapsed time.
-5. The Worker polls Modal's result path, downloads the completed MP4, saves it
+1. Every authenticated Picture or Video submission creates an
+   `ai_video_media` row with `submitted` status.
+2. Accepted processing transitions the media row to `pending`; the UI shows a
+   clock badge in the library and loading/view screens.
+3. Video submission also creates a provider-specific `ai_video_jobs` row.
+4. Source media is saved beneath the user's private R2 prefix.
+5. The Worker submits `/generate` to the selected GPU provider.
+6. The UI polls the media/job route while work is pending.
+7. The Worker saves the completed picture or downloads the completed MP4,
+   saves it
    to R2, and marks the D1 job complete.
-6. Private thumbnail/video routes stream only after verifying ownership.
+8. Private thumbnail/content routes stream only after verifying ownership.
 
 ## Data boundaries
 
@@ -124,11 +137,14 @@ Shared across experiments:
 
 Owned only by AI Video:
 
+- `ai_video_media` — unified user library metadata for pictures and videos,
+  including `submitted`, `pending`, `complete`, or `failed` status. Existing
+  video jobs are backfilled into this table by migration `0002`.
 - `ai_video_jobs` — configuration, provider/model, progress, Modal call/result
-  references, private object keys, error state, and timestamps.
+  references, private object keys, error state, and timestamps for videos.
 - D1 queries always include `user_id` for user-owned records.
 - R2 keys use:
-  `experiments/ai-video/users/{clerkUserId}/{sources|videos}/...`
+  `experiments/ai-video/users/{clerkUserId}/{pictures|sources|videos}/...`
 
 When adding another experiment:
 
@@ -210,4 +226,3 @@ acceptable after deployment; ask before browser or visual testing.
 - Result fetches have bounded timeouts; a temporary provider failure normally
   leaves a job running so a later poll can retry.
 - Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.
-

@@ -29,6 +29,30 @@ export type AiVideoJob = {
   completed_at: string | null;
 };
 
+export type AiVideoMedia = {
+  id: string;
+  user_id: string;
+  media_type: "picture" | "video";
+  status: "submitted" | "pending" | "complete" | "failed";
+  model_key: string;
+  prompt: string;
+  negative_prompt: string | null;
+  quality: string;
+  width: number;
+  height: number;
+  duration_seconds: number | null;
+  fps: number | null;
+  seed: number;
+  job_id: string | null;
+  thumbnail_object_key: string | null;
+  content_object_key: string | null;
+  content_mime_type: string | null;
+  error_message: string | null;
+  created_at: string;
+  updated_at: string;
+  completed_at: string | null;
+};
+
 type RuntimeBindings = {
   DB?: D1Database;
   MEDIA?: R2Bucket;
@@ -122,6 +146,67 @@ export async function ensureAiVideoSchema() {
     db.prepare(`
       CREATE UNIQUE INDEX IF NOT EXISTS ai_video_jobs_modal_call_uq
       ON ai_video_jobs (modal_call_id)
+    `),
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS ai_video_media (
+        id TEXT PRIMARY KEY NOT NULL,
+        user_id TEXT NOT NULL,
+        media_type TEXT NOT NULL,
+        status TEXT DEFAULT 'submitted' NOT NULL,
+        model_key TEXT NOT NULL,
+        prompt TEXT NOT NULL,
+        negative_prompt TEXT,
+        quality TEXT NOT NULL,
+        width INTEGER NOT NULL,
+        height INTEGER NOT NULL,
+        duration_seconds INTEGER,
+        fps INTEGER,
+        seed INTEGER NOT NULL,
+        job_id TEXT,
+        thumbnail_object_key TEXT,
+        content_object_key TEXT,
+        content_mime_type TEXT,
+        error_message TEXT,
+        created_at TEXT NOT NULL,
+        updated_at TEXT NOT NULL,
+        completed_at TEXT
+      )
+    `),
+    db.prepare(`
+      CREATE INDEX IF NOT EXISTS ai_video_media_user_created_idx
+      ON ai_video_media (user_id, created_at)
+    `),
+    db.prepare(`
+      CREATE INDEX IF NOT EXISTS ai_video_media_user_type_created_idx
+      ON ai_video_media (user_id, media_type, created_at)
+    `),
+    db.prepare(`
+      CREATE INDEX IF NOT EXISTS ai_video_media_user_status_idx
+      ON ai_video_media (user_id, status)
+    `),
+    db.prepare(`
+      CREATE UNIQUE INDEX IF NOT EXISTS ai_video_media_job_uq
+      ON ai_video_media (job_id)
+    `),
+    db.prepare(`
+      INSERT OR IGNORE INTO ai_video_media (
+        id, user_id, media_type, status, model_key, prompt, negative_prompt,
+        quality, width, height, duration_seconds, fps, seed, job_id,
+        thumbnail_object_key, content_object_key, content_mime_type,
+        error_message, created_at, updated_at, completed_at
+      )
+      SELECT
+        id, user_id, 'video',
+        CASE
+          WHEN status = 'complete' THEN 'complete'
+          WHEN status = 'failed' THEN 'failed'
+          ELSE 'pending'
+        END,
+        model_key, prompt, negative_prompt, quality, width, height,
+        duration_seconds, fps, seed, id, thumbnail_object_key,
+        output_object_key, output_mime_type, error_message, created_at,
+        updated_at, completed_at
+      FROM ai_video_jobs
     `),
   ]);
 
@@ -263,5 +348,111 @@ export async function updateAiVideoJob(
       `UPDATE ai_video_jobs SET ${assignments}, updated_at = ? WHERE id = ? AND user_id = ?`,
     )
     .bind(...values, new Date().toISOString(), id, userId)
+    .run();
+}
+
+export async function insertAiVideoMedia(media: AiVideoMedia) {
+  await (await getAiVideoDb())
+    .prepare(`
+      INSERT INTO ai_video_media (
+        id, user_id, media_type, status, model_key, prompt, negative_prompt,
+        quality, width, height, duration_seconds, fps, seed, job_id,
+        thumbnail_object_key, content_object_key, content_mime_type,
+        error_message, created_at, updated_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `)
+    .bind(
+      media.id,
+      media.user_id,
+      media.media_type,
+      media.status,
+      media.model_key,
+      media.prompt,
+      media.negative_prompt,
+      media.quality,
+      media.width,
+      media.height,
+      media.duration_seconds,
+      media.fps,
+      media.seed,
+      media.job_id,
+      media.thumbnail_object_key,
+      media.content_object_key,
+      media.content_mime_type,
+      media.error_message,
+      media.created_at,
+      media.updated_at,
+      media.completed_at,
+    )
+    .run();
+}
+
+export async function listAiVideoMedia(
+  userId: string,
+  mediaType?: "picture" | "video",
+) {
+  const db = await getAiVideoDb();
+  const query = mediaType
+    ? db
+        .prepare(`
+          SELECT * FROM ai_video_media
+          WHERE user_id = ? AND media_type = ?
+          ORDER BY created_at DESC
+          LIMIT 100
+        `)
+        .bind(userId, mediaType)
+    : db
+        .prepare(`
+          SELECT * FROM ai_video_media
+          WHERE user_id = ?
+          ORDER BY created_at DESC
+          LIMIT 100
+        `)
+        .bind(userId);
+  return (await query.all<AiVideoMedia>()).results;
+}
+
+export async function getAiVideoMediaItem(id: string, userId: string) {
+  return (await getAiVideoDb())
+    .prepare("SELECT * FROM ai_video_media WHERE id = ? AND user_id = ?")
+    .bind(id, userId)
+    .first<AiVideoMedia>();
+}
+
+export async function getAiVideoMediaByJob(jobId: string, userId: string) {
+  return (await getAiVideoDb())
+    .prepare("SELECT * FROM ai_video_media WHERE job_id = ? AND user_id = ?")
+    .bind(jobId, userId)
+    .first<AiVideoMedia>();
+}
+
+export async function updateAiVideoMedia(
+  id: string,
+  userId: string,
+  updates: Partial<
+    Pick<
+      AiVideoMedia,
+      | "status"
+      | "thumbnail_object_key"
+      | "content_object_key"
+      | "content_mime_type"
+      | "error_message"
+      | "completed_at"
+    >
+  >,
+) {
+  const entries = Object.entries(updates);
+  if (!entries.length) return;
+  const assignments = entries.map(([key]) => `${key} = ?`).join(", ");
+  await (await getAiVideoDb())
+    .prepare(
+      `UPDATE ai_video_media SET ${assignments}, updated_at = ? WHERE id = ? AND user_id = ?`,
+    )
+    .bind(
+      ...entries.map(([, value]) => value),
+      new Date().toISOString(),
+      id,
+      userId,
+    )
     .run();
 }

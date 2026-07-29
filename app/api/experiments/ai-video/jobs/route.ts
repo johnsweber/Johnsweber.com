@@ -2,9 +2,12 @@ import { Buffer } from "node:buffer";
 import {
   ensureAiVideoSchema,
   getAiVideoMedia,
+  insertAiVideoMedia,
   insertAiVideoJob,
   listAiVideoJobs,
+  updateAiVideoMedia,
   updateAiVideoJob,
+  type AiVideoMedia,
   upsertSharedUser,
   type AiVideoJob,
 } from "@/db/ai-video";
@@ -100,6 +103,31 @@ export async function POST(request: Request) {
     });
 
     const now = new Date().toISOString();
+    const media: AiVideoMedia = {
+      id,
+      user_id: user.id,
+      media_type: "video",
+      status: "submitted",
+      model_key: modelKey,
+      prompt,
+      negative_prompt: negativePrompt || null,
+      quality: qualityKey,
+      width: settings.quality.width,
+      height: settings.quality.height,
+      duration_seconds: settings.duration.seconds,
+      fps: settings.duration.fps,
+      seed: seedValue,
+      job_id: id,
+      thumbnail_object_key: sourceObjectKey,
+      content_object_key: null,
+      content_mime_type: null,
+      error_message: null,
+      created_at: now,
+      updated_at: now,
+      completed_at: null,
+    };
+    await insertAiVideoMedia(media);
+
     const job: AiVideoJob = {
       id,
       user_id: user.id,
@@ -148,6 +176,10 @@ export async function POST(request: Request) {
         status: "failed",
         error_message: "This model endpoint is not configured yet.",
       });
+      await updateAiVideoMedia(id, user.id, {
+        status: "failed",
+        error_message: "This model endpoint is not configured yet.",
+      });
       return Response.json({ error: "This model endpoint is not configured yet.", jobId: id }, { status: 503 });
     }
 
@@ -192,6 +224,10 @@ export async function POST(request: Request) {
     if (!modalResponse.ok || !modalData.call_id || !modalData.result_path) {
       const message = modalData.detail || "The model could not accept this generation.";
       await updateAiVideoJob(id, user.id, { status: "failed", error_message: message });
+      await updateAiVideoMedia(id, user.id, {
+        status: "failed",
+        error_message: message,
+      });
       return Response.json({ error: message, jobId: id }, { status: 502 });
     }
 
@@ -200,6 +236,9 @@ export async function POST(request: Request) {
       modal_result_path: modalData.result_path,
       status: "queued",
       progress: 4,
+    });
+    await updateAiVideoMedia(id, user.id, {
+      status: "pending",
     });
 
     return Response.json(
