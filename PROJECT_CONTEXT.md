@@ -206,9 +206,9 @@ five minutes; this is an estimate, not provider telemetry.
   - One-click presets: Test uses those minimums; Fast uses `768x512`, 121
     frames at 24 fps; Max uses `1920x1088`, 241 frames at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
-  - Current Modal app/function: `video-models` / `ltx_api`.
+  - Current Modal app/function: `ltx-2-3` / `ltx_api`.
   - Current base route:
-    `https://johnsweber--video-models-ltx-api.modal.run`.
+    `https://johnsweber--ltx-2-3-ltx-api.modal.run`.
   - Hugging Face access is granted for both the LTX-2.3 weights and its gated
     Gemma 3 text-encoder dependency.
   - Hugging Face Xet is disabled for model downloads because its hash parser
