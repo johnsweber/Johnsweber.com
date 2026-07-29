@@ -45,7 +45,9 @@ test("uses the interactive logic portrait instead of the AI badge", async () => 
   );
   assert.match(home, /<HeroLogicImage \/>/);
   assert.doesNotMatch(home, /network-core/);
-  assert.match(visual, /HANDS \/ LOGIC \/ PLAY/);
+  assert.match(visual, /LOGIC IN MOTION/);
+  assert.match(visual, /logic-watercolor/);
+  assert.match(visual, /setPointerCapture/);
   assert.match(visual, /requestPermission/);
   assert.match(visual, /onPointerMove/);
 });
