@@ -147,6 +147,73 @@ export function demoContentKey(asset: DemoMediaAsset, thumbnail = false) {
   return `demo:${commonsFileUrl(fileName, width)}`;
 }
 
+function demoRequestHeaders() {
+  return {
+    "Api-User-Agent":
+      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
+    "User-Agent":
+      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
+  };
+}
+
+async function downloadDemoFile(fileName: string, width?: number) {
+  const response = await fetch(commonsFileUrl(fileName, width), {
+    headers: demoRequestHeaders(),
+    redirect: "follow",
+    signal: AbortSignal.timeout(60_000),
+  });
+  if (!response.ok || !response.body) {
+    throw new Error("The selected demo media could not be copied.");
+  }
+  return response;
+}
+
+export async function copyDemoAssetToR2(
+  bucket: R2Bucket,
+  asset: DemoMediaAsset,
+  userId: string,
+  mediaId: string,
+) {
+  const prefix = `experiments/ai-video/users/${userId}/demo`;
+  const contentExtension = asset.mediaType === "video" ? "webm" : "jpg";
+  const contentKey = `${prefix}/${asset.mediaType === "video" ? "videos" : "pictures"}/${mediaId}.${contentExtension}`;
+  const content = await downloadDemoFile(
+    asset.fileName,
+    asset.mediaType === "picture" ? 1280 : undefined,
+  );
+  const contentType = content.headers.get("content-type") || asset.mimeType;
+  await bucket.put(contentKey, content.body, {
+    httpMetadata: { contentType },
+    customMetadata: {
+      userId,
+      experiment: "ai-video",
+      demoSource: asset.sourcePage,
+      demoCreator: asset.creator,
+      demoLicense: asset.license,
+    },
+  });
+
+  if (asset.mediaType === "picture") {
+    return { contentKey, thumbnailKey: contentKey, contentType };
+  }
+
+  const thumbnailKey = `${prefix}/thumbnails/${mediaId}.jpg`;
+  const thumbnail = await downloadDemoFile(asset.thumbnailFileName!, 1280);
+  await bucket.put(thumbnailKey, thumbnail.body, {
+    httpMetadata: {
+      contentType: thumbnail.headers.get("content-type") || "image/jpeg",
+    },
+    customMetadata: {
+      userId,
+      experiment: "ai-video",
+      demoSource: asset.sourcePage,
+      demoCreator: asset.creator,
+      demoLicense: asset.license,
+    },
+  });
+  return { contentKey, thumbnailKey, contentType };
+}
+
 export function demoUrlFromObjectKey(objectKey: string | null) {
   if (!objectKey?.startsWith("demo:")) return null;
   const value = objectKey.slice(5);
@@ -167,11 +234,8 @@ export async function proxyDemoMedia(
   const url = demoUrlFromObjectKey(objectKey);
   if (!url) return null;
   const headers = new Headers({
+    ...demoRequestHeaders(),
     Accept: options.thumbnail ? "image/*" : "*/*",
-    "Api-User-Agent":
-      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
-    "User-Agent":
-      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
   });
   if (options.range && !options.thumbnail) headers.set("Range", options.range);
   const upstream = await fetch(url, {

@@ -186,6 +186,8 @@ test("defaults generation to session-scoped demo mode", async () => {
   assert.match(productionMode, /x-johnsweber-use-production/);
   assert.match(demoMedia, /Api-User-Agent/);
   assert.match(demoMedia, /JohnsweberDemoMedia/);
+  assert.match(demoMedia, /copyDemoAssetToR2/);
+  assert.match(demoMedia, /demoLicense/);
   assert.match(aiVideo, /Demo mode returns a free example video/);
   assert.match(aiVideo, /useProduction && videoModel\.supportsImage/);
 });

@@ -8,7 +8,7 @@ import {
   type AiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { demoAssetFor, demoContentKey } from "@/lib/demo-media";
+import { copyDemoAssetToR2, demoAssetFor } from "@/lib/demo-media";
 import { publicAiVideoMedia } from "@/lib/ai-video-service";
 import { requestUsesProduction } from "@/lib/production-mode";
 
@@ -88,13 +88,19 @@ export async function POST(request: Request) {
 
     if (!useProduction) {
       const asset = demoAssetFor("picture", seed);
-      const objectKey = demoContentKey(asset);
+      const copied = await copyDemoAssetToR2(
+        await getAiVideoMedia(),
+        asset,
+        user.id,
+        mediaId,
+      );
+      const objectKey = copied.contentKey;
       const completedAt = new Date().toISOString();
       await updateAiVideoMedia(mediaId, user.id, {
         status: "complete",
         thumbnail_object_key: objectKey,
         content_object_key: objectKey,
-        content_mime_type: asset.mimeType,
+        content_mime_type: copied.contentType,
         completed_at: completedAt,
         error_message: null,
       });

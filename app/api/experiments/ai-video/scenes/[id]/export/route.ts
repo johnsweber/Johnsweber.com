@@ -1,9 +1,9 @@
 import {
   ensureAiVideoSchema, getAiVideoScene, insertAiVideoMedia, insertProcessingTask,
-  updateAiVideoMedia, updateProcessingTask, type AiVideoMedia,
+  getAiVideoMedia, updateAiVideoMedia, updateProcessingTask, type AiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { demoAssetFor, demoContentKey } from "@/lib/demo-media";
+import { copyDemoAssetToR2, demoAssetFor } from "@/lib/demo-media";
 import { processingEndpoint, processingHeaders, publicProcessingTask, sha256 } from "@/lib/ai-video-processing";
 import { requestUsesProduction } from "@/lib/production-mode";
 
@@ -31,11 +31,17 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await insertAiVideoMedia(media);
     if (!requestUsesProduction(request)) {
       const asset = demoAssetFor("video", first.seed);
+      const copied = await copyDemoAssetToR2(
+        await getAiVideoMedia(),
+        asset,
+        user.id,
+        outputId,
+      );
       await updateAiVideoMedia(outputId, user.id, {
-        status: "complete", content_object_key: demoContentKey(asset),
-        thumbnail_object_key: demoContentKey(asset, true),
-        last_frame_object_key: demoContentKey(asset, true),
-        content_mime_type: asset.mimeType, completed_at: now,
+        status: "complete", content_object_key: copied.contentKey,
+        thumbnail_object_key: copied.thumbnailKey,
+        last_frame_object_key: copied.thumbnailKey,
+        content_mime_type: copied.contentType, completed_at: now,
       });
       return Response.json({ outputMediaId: outputId, task: null }, { status: 201 });
     }

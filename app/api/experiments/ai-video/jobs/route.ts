@@ -14,7 +14,7 @@ import {
   type AiVideoJob,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { demoAssetFor, demoContentKey } from "@/lib/demo-media";
+import { copyDemoAssetToR2, demoAssetFor } from "@/lib/demo-media";
 import {
   getGenerationSettings,
   getModelConfig,
@@ -242,14 +242,20 @@ export async function POST(request: Request) {
 
     if (!useProduction) {
       const asset = demoAssetFor("video", seedValue);
-      const contentObjectKey = demoContentKey(asset);
-      const thumbnailObjectKey = demoContentKey(asset, true);
+      const copied = await copyDemoAssetToR2(
+        await getAiVideoMedia(),
+        asset,
+        user.id,
+        id,
+      );
+      const contentObjectKey = copied.contentKey;
+      const thumbnailObjectKey = copied.thumbnailKey;
       const completedAt = new Date().toISOString();
       await updateAiVideoJob(id, user.id, {
         status: "complete",
         progress: 100,
         output_object_key: contentObjectKey,
-        output_mime_type: asset.mimeType,
+        output_mime_type: copied.contentType,
         completed_at: completedAt,
         error_message: null,
       });
@@ -258,7 +264,7 @@ export async function POST(request: Request) {
         thumbnail_object_key: thumbnailObjectKey,
         last_frame_object_key: thumbnailObjectKey,
         content_object_key: contentObjectKey,
-        content_mime_type: asset.mimeType,
+        content_mime_type: copied.contentType,
         completed_at: completedAt,
         error_message: null,
       });
@@ -271,7 +277,7 @@ export async function POST(request: Request) {
         thumbnail_object_key: thumbnailObjectKey,
         last_frame_object_key: thumbnailObjectKey,
             output_object_key: contentObjectKey,
-            output_mime_type: asset.mimeType,
+            output_mime_type: copied.contentType,
             completed_at: completedAt,
           }),
           sceneId: scene?.id || null,

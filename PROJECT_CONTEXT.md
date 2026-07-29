@@ -178,9 +178,12 @@ Generation environment:
 - Production must be explicitly enabled for the current user/browser session.
   Production video requests use the configured Wan/LTX Modal endpoints;
   Production pictures continue to use the configured local ComfyUI gateway.
-- Demo media stays behind the authenticated private media routes. Those routes
-  proxy only validated `commons.wikimedia.org` URLs recorded by the server and
-  identify the application with Wikimedia-compliant request headers.
+- Demo creation downloads the selected Commons asset once and stores a
+  user-owned copy under the account's private R2 prefix. Attribution and license
+  data are retained as object metadata. This gives last-frame extraction and
+  scene export stable server-side inputs. The authenticated routes retain their
+  validated Commons proxy only for older library rows created before this
+  storage change.
   Image-guided production models do not require a source upload in Demo mode.
   Source/creator/license details are maintained in
   `docs/demo-media-sources.md` and `lib/demo-media.ts`.
