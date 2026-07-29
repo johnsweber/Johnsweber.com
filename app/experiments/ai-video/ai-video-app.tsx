@@ -164,6 +164,42 @@ async function readApiResponse<T extends { error?: string }>(
   }
 }
 
+async function optimizeReferenceImage(file: File) {
+  if (file.size <= 1_500_000) return file;
+  const bitmap = await createImageBitmap(file);
+  try {
+    let result: Blob | null = null;
+    for (let attempt = 0; attempt < 5; attempt += 1) {
+      const maxDimension = 1600 * (0.86 ** attempt);
+      const scale = Math.min(1, maxDimension / Math.max(bitmap.width, bitmap.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+      canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("This browser cannot optimize the reference image.");
+      context.fillStyle = "#ffffff";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+      result = await new Promise<Blob>((resolve, reject) => {
+        canvas.toBlob(
+          blob => blob ? resolve(blob) : reject(new Error("The reference image could not be compressed.")),
+          "image/jpeg",
+          Math.max(0.58, 0.88 - attempt * 0.08),
+        );
+      });
+      if (result.size <= 1_500_000) break;
+    }
+    if (!result) throw new Error("The reference image could not be optimized.");
+    const stem = file.name.replace(/\.[^.]+$/, "") || "reference";
+    return new File([result], `${stem}-optimized.jpg`, {
+      type: "image/jpeg",
+      lastModified: Date.now(),
+    });
+  } finally {
+    bitmap.close();
+  }
+}
+
 function useAuthorizedFetch() {
   const { getToken } = useAuth();
   const { user } = useUser();
@@ -958,6 +994,7 @@ function CreateView() {
   const [negativePrompt, setNegativePrompt] = useState("");
   const [seed, setSeed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
+  const [submissionStatus, setSubmissionStatus] = useState("");
   const [error, setError] = useState("");
   const [job, setJob] = useState<PublicJob | null>(null);
   const [createdMedia, setCreatedMedia] = useState<PublicMedia | null>(null);
@@ -1122,6 +1159,7 @@ function CreateView() {
     event.preventDefault();
     setError("");
     setSubmitting(true);
+    setSubmissionStatus("Submitting…");
     try {
       if (creationType === "picture") {
         const response = await authorizedFetch(
@@ -1166,7 +1204,12 @@ function CreateView() {
         "sourceProvider",
         useProduction && videoModel.supportsImage ? "upload" : "none",
       );
-      if (source) form.set("sourceImage", source);
+      if (source) {
+        setSubmissionStatus(source.size > 1_500_000 ? "Optimizing reference…" : "Submitting…");
+        const uploadSource = await optimizeReferenceImage(source);
+        form.set("sourceImage", uploadSource);
+        setSubmissionStatus("Submitting…");
+      }
       else if (animateMediaId) form.set("referenceMediaId", animateMediaId);
       if (extendMediaId) form.set("extendMediaId", extendMediaId);
       if (requestedSceneId) form.set("sceneId", requestedSceneId);
@@ -1193,6 +1236,7 @@ function CreateView() {
       );
     } finally {
       setSubmitting(false);
+      setSubmissionStatus("");
     }
   }
 
@@ -1339,7 +1383,7 @@ function CreateView() {
                 <strong>{source ? source.name : animateMedia ? "Saved picture" : "Choose reference image"}</strong>
                 <span>
                   {source || animateMedia
-                    ? "Preview ready · click to replace"
+                    ? "Preview ready · large photos optimize automatically · click to replace"
                     : "The composition anchors the generated motion."}
                 </span>
                 <input
@@ -1504,7 +1548,7 @@ function CreateView() {
             type="submit"
             disabled={submitting}
           >
-            {submitting ? "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
+            {submitting ? submissionStatus || "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
           </button>
         </div>
       </form>

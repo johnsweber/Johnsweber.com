@@ -148,6 +148,10 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Estimated generation/);
   assert.match(source, /GPU warm/);
   assert.match(source, /renderEstimateSeconds/);
+  assert.match(source, /optimizeReferenceImage/);
+  assert.match(source, /1_500_000/);
+  assert.match(source, /Optimizing reference/);
+  assert.match(source, /canvas\.toBlob/);
   assert.doesNotMatch(source, /videoModel\.supportsImage && useProduction && \(/);
   assert.match(source, /onSubmit=\{submit\} noValidate/);
   assert.doesNotMatch(source, /disabled=\{\s*submitting \|\|\s*!prompt/);

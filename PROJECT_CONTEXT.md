@@ -174,7 +174,9 @@ Picture creation uses the protected local GPU/ComfyUI connection:
   token live in ignored `.local-ai/`.
 
 Video creation does not expose the local GPU. Wan accepts an uploaded JPG, PNG,
-or WebP source image up to 12 MB; LTX creates directly from text.
+or WebP source image up to 12 MB; LTX creates directly from text. Browser
+uploads larger than 1.5 MB are resized and JPEG-compressed before submission
+to stay below the request gateway limit while the original remains local.
 
 Job lifecycle:
 
