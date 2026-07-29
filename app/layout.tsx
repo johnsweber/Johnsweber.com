@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
 import { AuthProvider } from "./auth-provider";
 import { ImageEdgeBursts } from "./image-edge-bursts";
+import { SiteThemeController } from "./site-theme";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -49,6 +50,7 @@ export default function RootLayout({
   return (
     <html lang="en">
       <body className={`${geistSans.variable} ${geistMono.variable}`}>
+        <SiteThemeController />
         <ImageEdgeBursts />
         <AuthProvider publishableKey={publishableKey}>{children}</AuthProvider>
       </body>

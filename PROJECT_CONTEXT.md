@@ -77,6 +77,11 @@ Public/general:
   It is stored per user in browser `sessionStorage`, defaults to Demo (`false`)
   in every new browser session, and is sent to generation APIs through the
   `x-johnsweber-use-production` header.
+- The grid navigation includes a device-local Theme selector. `Main` is the
+  original visual system; `New` currently renders the same design as a
+  separately addressable theme so it can evolve without changing Main.
+  Selection persists in browser `localStorage` and is applied through the root
+  `data-site-theme` attribute across routes.
 - Navigation shows login when signed out and account details/management when
   signed in.
 - `/login` — Clerk sign-in.

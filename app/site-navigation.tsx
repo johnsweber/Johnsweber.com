@@ -17,6 +17,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuthConfigured } from "./auth-provider";
+import { useSiteTheme, type SiteTheme } from "./site-theme";
 import { useProductionMode } from "@/lib/use-production-mode";
 
 const navItems = [
@@ -91,7 +92,10 @@ function MenuShell({
               <span>EXPLORE THE SITE</span>
               <h2>Pick a direction.</h2>
             </div>
-            {modeControl}
+            <div className="menu-preference-controls">
+              <ThemeControl />
+              {modeControl}
+            </div>
             <div className="icon-nav-grid">
               {navItems.map(({ label, detail, href, icon: Icon }) => {
                 const content = (
@@ -119,6 +123,36 @@ function MenuShell({
         </div>
       )}
     </>
+  );
+}
+
+function ThemeControl() {
+  const { theme, setTheme } = useSiteTheme();
+  const themes: Array<{ value: SiteTheme; label: string }> = [
+    { value: "main", label: "Main" },
+    { value: "new", label: "New" },
+  ];
+
+  return (
+    <div className="production-mode-control theme-mode-control">
+      <div>
+        <strong>Theme</strong>
+        <small>{theme === "new" ? "A new look is coming. For now, it matches Main." : "The original site color and motion system."}</small>
+      </div>
+      <div className="production-mode-pill" role="group" aria-label="Site theme">
+        {themes.map(option => (
+          <button
+            key={option.value}
+            type="button"
+            className={theme === option.value ? "selected" : ""}
+            aria-pressed={theme === option.value}
+            onClick={() => setTheme(option.value)}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

@@ -298,6 +298,28 @@ test("defaults generation to session-scoped demo mode", async () => {
   assert.match(aiVideo, /<PendingMediaPanel mediaType="picture" \/>/);
 });
 
+test("offers persistent main and new site themes", async () => {
+  const navigation = await readFile(
+    new URL("../app/site-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+  const theme = await readFile(
+    new URL("../app/site-theme.tsx", import.meta.url),
+    "utf8",
+  );
+  const layout = await readFile(
+    new URL("../app/layout.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(navigation, /<strong>Theme<\/strong>/);
+  assert.match(navigation, /value: "main", label: "Main"/);
+  assert.match(navigation, /value: "new", label: "New"/);
+  assert.match(navigation, /For now, it matches Main/);
+  assert.match(theme, /localStorage/);
+  assert.match(theme, /dataset\.siteTheme/);
+  assert.match(layout, /<SiteThemeController \/>/);
+});
+
 test("normalizes structured Modal responses before D1 writes", async () => {
   const source = await readFile(
     new URL(

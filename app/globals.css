@@ -1215,8 +1215,13 @@ body.menu-open { overflow: hidden; }
   line-height: .95;
   letter-spacing: -.06em;
 }
-.production-mode-control {
+.menu-preference-controls {
   margin: -12px 0 28px;
+  display: grid;
+  gap: 12px;
+}
+.production-mode-control {
+  margin: 0;
   padding: 16px 18px;
   display: flex;
   align-items: center;
@@ -1260,6 +1265,9 @@ body.menu-open { overflow: hidden; }
   color: white;
   background: var(--blue);
   box-shadow: 0 4px 12px rgba(24,93,216,.2);
+}
+:root[data-site-theme="new"] {
+  color-scheme: light;
 }
 .icon-nav-grid {
   display: grid;
