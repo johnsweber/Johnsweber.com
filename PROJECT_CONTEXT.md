@@ -115,7 +115,9 @@ AI Video experiment (login required):
   Completed pictures offer **Animate picture**, which opens Wan with that
   user-owned picture preloaded and previewed as its reference image, and
   **Edit picture**, which opens Z-Image Turbo with the saved picture preloaded
-  as its private image-to-image reference.
+  as its private image-to-image reference. **Retry · new seed** restores the
+  picture model, prompt, negative prompt, preset, and aspect ratio while
+  advancing to a different valid seed.
   Video players read the file's actual metadata duration and persist it back to
   the owned media record, correcting older configuration-derived durations.
   **Scan timeline** lazily samples roughly one frame per three seconds in the

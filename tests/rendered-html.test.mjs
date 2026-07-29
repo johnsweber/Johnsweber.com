@@ -335,6 +335,9 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Math\.ceil\(measuredDuration \/ 3\)/);
   assert.match(app, /canvas\.toBlob/);
   assert.match(app, /Preparing the last frame on the server/);
+  assert.match(app, /Animate this image:/);
+  assert.match(app, /Retry · new seed/);
+  assert.match(app, /setSeed\(\(media\.seed \+ 1\) % 2_147_483_648\)/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
   assert.match(app, /href: "\/experiments\/ai-video\/queue"/);

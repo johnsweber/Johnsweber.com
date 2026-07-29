@@ -107,6 +107,7 @@ export function publicAiVideoMedia(media: AiVideoMedia) {
     status: media.status,
     modelKey: media.model_key,
     prompt: media.prompt,
+    negativePrompt: media.negative_prompt || "",
     quality: media.quality,
     width: media.width,
     height: media.height,

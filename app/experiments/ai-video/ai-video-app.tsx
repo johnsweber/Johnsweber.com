@@ -96,6 +96,7 @@ type PublicMedia = {
   status: MediaStatus;
   modelKey: string;
   prompt: string;
+  negativePrompt: string;
   quality: string;
   width: number;
   height: number;
@@ -966,6 +967,7 @@ function CreateView() {
   const extendMediaId = searchParams.get("extend");
   const animateMediaId = searchParams.get("animate");
   const editMediaId = searchParams.get("edit");
+  const retryMediaId = searchParams.get("retry");
   const requestedSceneId = searchParams.get("scene");
   const startsWithVideo = Boolean(
     extendMediaId || animateMediaId || searchParams.get("mode") === "video",
@@ -1081,6 +1083,9 @@ function CreateView() {
           throw new Error(data.error || "This picture is unavailable for animation.");
         }
         setAnimateMedia(data.media);
+        setCreationType("video");
+        setVideoModelKey("wan22");
+        setPrompt(`Animate this image: ${data.media.prompt}`);
       })
       .catch(error => setError(error instanceof Error ? error.message : "Unable to load this picture."));
   }, [animateMediaId, authorizedFetch, extendMediaId]);
@@ -1106,6 +1111,42 @@ function CreateView() {
       })
       .catch(error => setError(error instanceof Error ? error.message : "Unable to load this picture."));
   }, [authorizedFetch, editMediaId]);
+  useEffect(() => {
+    if (!retryMediaId) return;
+    authorizedFetch(`/api/experiments/ai-video/media/${retryMediaId}`)
+      .then(async response => {
+        const data = await response.json() as { media?: PublicMedia; error?: string };
+        if (
+          !response.ok ||
+          !data.media ||
+          data.media.mediaType !== "picture" ||
+          data.media.status !== "complete"
+        ) {
+          throw new Error(data.error || "This picture is unavailable to retry.");
+        }
+        const media = data.media;
+        const modelKey = media.modelKey in AI_PICTURE_MODELS
+          ? media.modelKey as PictureModelKey
+          : "zimage";
+        const presetKey = media.quality.split(":", 1)[0];
+        setCreationType("picture");
+        setPictureModel(modelKey);
+        setPicturePreset(
+          presetKey === "fast" || presetKey === "quality" ? presetKey : "medium",
+        );
+        setPictureAspect(
+          media.width / Math.max(1, media.height) > 1.2
+            ? "landscape"
+            : media.width / Math.max(1, media.height) < 0.84
+              ? "portrait"
+              : "square",
+        );
+        setPrompt(media.prompt);
+        setNegativePrompt(media.negativePrompt || "");
+        setSeed((media.seed + 1) % 2_147_483_648);
+      })
+      .catch(error => setError(error instanceof Error ? error.message : "Unable to retry this picture."));
+  }, [authorizedFetch, retryMediaId]);
 
   function chooseCreationType(next: CreationType) {
     setCreationType(next);
@@ -2147,12 +2188,15 @@ function MediaView({
           )}
           {media.mediaType === "picture" && (
             <div className="aiv-actions aiv-player-actions">
-              <Link href={`/experiments/ai-video/create?mode=video&animate=${media.id}`}>
+              <a href={`/experiments/ai-video/create?mode=video&animate=${media.id}`}>
                 <WandSparkles aria-hidden="true" /> Animate picture
-              </Link>
+              </a>
               <Link className="secondary" href={`/experiments/ai-video/create?edit=${media.id}`}>
                 <Pencil aria-hidden="true" /> Edit picture
               </Link>
+              <a className="secondary" href={`/experiments/ai-video/create?retry=${media.id}`}>
+                <RefreshCw aria-hidden="true" /> Retry · new seed
+              </a>
             </div>
           )}
         </section>
