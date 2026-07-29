@@ -1496,7 +1496,13 @@ body.menu-open { overflow: hidden; }
   .grid-menu { min-height: 100vh; border-radius: 0; }
   .menu-user { align-items: flex-start; flex-wrap: wrap; }
   .menu-user > button { margin-left: 0; }
-  .icon-nav-grid { grid-template-columns: 1fr 1fr; }
+  .icon-nav-grid { grid-template-columns: repeat(3,minmax(0,1fr)); gap: 9px; }
+  .icon-nav-grid > a, .account-grid-group { min-height: 138px; padding: 12px; border-radius: 17px; }
+  .account-grid-group { padding: 0; }
+  .account-grid-group > a { padding: 12px; }
+  .icon-nav-mark { width: 38px; height: 38px; border-radius: 12px; }
+  .icon-nav-grid strong { margin-top: 15px; font-size: 15px; }
+  .icon-nav-grid small { font-size: 11px; line-height: 1.25; }
   .hero { padding-top: 64px; min-height: auto; }
   .hero h1 { font-size: clamp(58px,16vw,88px); }
   .hero-lab { min-height: 510px; }
@@ -1529,8 +1535,11 @@ body.menu-open { overflow: hidden; }
   .production-mode-control { align-items: stretch; flex-direction: column; }
   .production-mode-pill { width: 100%; }
   .production-mode-pill button { flex: 1; }
-  .icon-nav-grid { grid-template-columns: 1fr; }
-  .icon-nav-grid > a, .account-grid-group { min-height: 160px; }
+  .icon-nav-grid { grid-template-columns: repeat(3,minmax(0,1fr)); }
+  .icon-nav-grid > a, .account-grid-group { min-height: 122px; padding: 9px; }
+  .account-grid-group { padding: 0; }
+  .account-grid-group > a { padding: 9px; }
+  .icon-nav-grid small { display: none; }
   .auth-page, .account-page { padding: 20px; }
   .auth-card { margin-top: 42px; padding: 28px 22px; }
   .hero-lab { min-height: 445px; }
