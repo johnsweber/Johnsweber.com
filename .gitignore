@@ -44,6 +44,7 @@ next-env.d.ts
 /.wrangler/
 /outputs/
 /work/
+/.local-ai/
 
 # python
 __pycache__/

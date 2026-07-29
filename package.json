@@ -11,6 +11,7 @@
     "start": "vinext start",
     "deploy": "wrangler deploy --config dist/server/wrangler.json --name johnsweber-playground --domain johnsweber.com --domain www.johnsweber.com",
     "deploy:recompile": "npm run build && node scripts/prepare-production-build.mjs && npm run deploy",
+    "local-ai:start": "powershell.exe -NoProfile -ExecutionPolicy Bypass -File scripts/start-local-generator.ps1 -UpdateCloudflare",
     "test": "npm run build && node --test tests/rendered-html.test.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern .next",
     "db:generate": "drizzle-kit generate"

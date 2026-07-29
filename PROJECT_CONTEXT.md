@@ -110,6 +110,11 @@ Picture creation uses the protected local GPU/ComfyUI connection:
 - SDXL Base 1.0 (`base`)
 - Animagine XL 4.0 (`animagine`)
 - Both currently generate `1024x576` private pictures.
+- `npm run local-ai:start` starts ComfyUI, the authenticated local gateway, and
+  a Cloudflare Quick Tunnel, then updates the encrypted Worker URL/token. The
+  tunnel and generator remain available only while this computer and those
+  background processes are running. Runtime files and the persistent gateway
+  token live in ignored `.local-ai/`.
 
 Video creation does not expose the local GPU. Wan accepts an uploaded JPG, PNG,
 or WebP source image up to 12 MB; LTX creates directly from text.
@@ -203,6 +208,7 @@ npm install
 npm run dev
 npm run lint
 npm test
+npm run local-ai:start
 ```
 
 `npm test` performs a production build and rendered-HTML tests. Relevant
