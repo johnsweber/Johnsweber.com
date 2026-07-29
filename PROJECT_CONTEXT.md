@@ -165,7 +165,8 @@ Job lifecycle:
    while this finishes.
 9. Extend preloads that saved frame into Wan and attaches the original and new
    clip to a user-owned scene in creation order.
-10. Scene Export supplies authenticated private clip URLs to the CPU service;
+10. Scene Export always supplies authenticated private clip URLs to the CPU
+    service, regardless of the Demo/Production generation toggle;
     the merged MP4 and its last frame return to R2 as a new video media item.
 11. Private thumbnail/content routes stream only after verifying ownership.
 
@@ -178,6 +179,9 @@ Generation environment:
 - Production must be explicitly enabled for the current user/browser session.
   Production video requests use the configured Wan/LTX Modal endpoints;
   Production pictures continue to use the configured local ComfyUI gateway.
+- The toggle applies to generative model calls. Deterministic operations on
+  already-saved media, including scene playback and CPU/FFmpeg export, always
+  operate on the user's actual files.
 - Demo creation downloads the selected Commons asset once and stores a
   user-owned copy under the account's private R2 prefix. Attribution and license
   data are retained as object metadata. This gives last-frame extraction and

@@ -217,6 +217,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     "utf8",
   );
   const modal = await readFile(new URL("../modal_media_tools.py", import.meta.url), "utf8");
+  const exportRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/scenes/[id]/export/route.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(app, /Extend video/);
   assert.match(app, /function SceneView/);
   assert.match(app, /Export scene/);
@@ -225,4 +229,5 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);
+  assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
 });

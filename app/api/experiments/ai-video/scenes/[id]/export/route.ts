@@ -1,11 +1,9 @@
 import {
   ensureAiVideoSchema, getAiVideoScene, insertAiVideoMedia, insertProcessingTask,
-  getAiVideoMedia, updateAiVideoMedia, updateProcessingTask, type AiVideoMedia,
+  updateAiVideoMedia, updateProcessingTask, type AiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { copyDemoAssetToR2, demoAssetFor } from "@/lib/demo-media";
 import { processingEndpoint, processingHeaders, publicProcessingTask, sha256 } from "@/lib/ai-video-processing";
-import { requestUsesProduction } from "@/lib/production-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -29,22 +27,6 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
       error_message: null, created_at: now, updated_at: now, completed_at: null,
     };
     await insertAiVideoMedia(media);
-    if (!requestUsesProduction(request)) {
-      const asset = demoAssetFor("video", first.seed);
-      const copied = await copyDemoAssetToR2(
-        await getAiVideoMedia(),
-        asset,
-        user.id,
-        outputId,
-      );
-      await updateAiVideoMedia(outputId, user.id, {
-        status: "complete", content_object_key: copied.contentKey,
-        thumbnail_object_key: copied.thumbnailKey,
-        last_frame_object_key: copied.thumbnailKey,
-        content_mime_type: copied.contentType, completed_at: now,
-      });
-      return Response.json({ outputMediaId: outputId, task: null }, { status: 201 });
-    }
     const endpoint = processingEndpoint();
     const headers = processingHeaders();
     if (!endpoint || !headers) throw new Error("The CPU media service is not configured.");
@@ -52,7 +34,7 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     const token = crypto.randomUUID() + crypto.randomUUID();
     const task = {
       id: taskId, user_id: user.id, task_type: "scene_export" as const,
-      status: "submitted" as const, progress: 3, source_media_id: null, scene_id: id,
+      status: "submitted" as const, progress: 3, source_media_id: null, scene_id: result.scene.id,
       output_media_id: outputId, modal_call_id: null, modal_result_path: null,
       access_token_hash: await sha256(token), error_message: null,
       created_at: now, updated_at: now, completed_at: null,
