@@ -446,24 +446,46 @@ export async function listAiVideoMedia(
   mediaType?: "picture" | "video" | "scene",
 ) {
   const db = await getAiVideoDb();
+  const effectiveStatus = `
+    CASE
+      WHEN m.media_type = 'scene' AND EXISTS (
+        SELECT 1
+        FROM ai_video_scenes s
+        JOIN ai_video_scene_items si ON si.scene_id = s.id AND si.user_id = s.user_id
+        JOIN ai_video_media clip ON clip.id = si.media_id AND clip.user_id = s.user_id
+        WHERE s.media_id = m.id
+          AND s.user_id = m.user_id
+          AND clip.status IN ('submitted', 'pending')
+      ) THEN 'pending'
+      ELSE m.status
+    END
+  `;
   const query = mediaType
     ? db
         .prepare(`
-          SELECT * FROM ai_video_media
-          WHERE user_id = ? AND media_type = ?
-          ORDER BY created_at DESC
+          SELECT m.*, ${effectiveStatus} AS effective_status
+          FROM ai_video_media m
+          WHERE m.user_id = ? AND m.media_type = ?
+          ORDER BY m.created_at DESC
           LIMIT 100
         `)
         .bind(userId, mediaType)
     : db
         .prepare(`
-          SELECT * FROM ai_video_media
-          WHERE user_id = ?
-          ORDER BY created_at DESC
+          SELECT m.*, ${effectiveStatus} AS effective_status
+          FROM ai_video_media m
+          WHERE m.user_id = ?
+          ORDER BY m.created_at DESC
           LIMIT 100
         `)
         .bind(userId);
-  return (await query.all<AiVideoMedia>()).results;
+  const rows = (await query.all<AiVideoMedia & {
+    effective_status: AiVideoMedia["status"];
+  }>()).results;
+  return rows.map(({ effective_status, ...media }) => ({
+    ...media,
+    status: effective_status,
+  }));
 }
 
 export async function getAiVideoMediaItem(id: string, userId: string) {

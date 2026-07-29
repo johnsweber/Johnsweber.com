@@ -295,6 +295,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /aiv-generation-reference/);
   assert.match(app, /job\?\.progress \|\| 4/);
   assert.match(database, /ai_video_scene_items/);
+  assert.match(database, /AS effective_status/);
+  assert.match(database, /clip\.status IN \('submitted', 'pending'\)/);
   assert.match(database, /last_frame_object_key/);
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);

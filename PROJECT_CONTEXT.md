@@ -93,6 +93,8 @@ AI Video experiment (login required):
 - `/experiments/ai-video/library` — unified private picture/video/scene library with
   All, Picture, Video, and Scene filters. Each card has an actions menu; Delete removes
   the user-owned media row, linked video job, and associated private R2 objects.
+  Scene cards derive their displayed status from their member clips, so a scene
+  remains Pending while any included video is Submitted or Pending.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state. Pending videos show their saved reference/thumbnail as a
   full preview with live generation percentage and estimated time, then
