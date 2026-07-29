@@ -47,6 +47,30 @@ export const AI_VIDEO_MODELS = {
       "wide-10": 480,
     },
   },
+  nava: {
+    key: "nava",
+    name: "NAVA 6.3B",
+    description: "Experimental native audio-video with dialogue, lip sync, and optional voice reference.",
+    mode: "text-or-image-to-audio-video",
+    supportsImage: true,
+    requiresImage: false,
+    supportsAudio: true,
+    endpointEnv: "NAVA_MODAL_URL",
+    qualities: {
+      landscape: { label: "1280 × 704", width: 1280, height: 704 },
+      square: { label: "960 × 960", width: 960, height: 960 },
+    },
+    durations: {
+      "6": { seconds: 6, frames: 37, fps: 24 },
+      "10": { seconds: 10, frames: 61, fps: 24 },
+    },
+    estimates: {
+      "landscape-6": 420,
+      "landscape-10": 720,
+      "square-6": 420,
+      "square-10": 720,
+    },
+  },
 } as const;
 
 export type AiVideoModelKey = keyof typeof AI_VIDEO_MODELS;

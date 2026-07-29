@@ -1,0 +1,260 @@
+"""Experimental single-H200 NAVA native audio-video service for Modal.
+
+Deployment creates the endpoint and image only. Model download and paid GPU
+allocation begin only when a production generation is submitted.
+"""
+
+from __future__ import annotations
+
+import base64
+import json
+import subprocess
+import time
+import uuid
+from pathlib import Path
+
+import modal
+
+APP_NAME = "nava-audio-video"
+MODEL_REPO = "baidu/NAVA"
+MODEL_ROOT = Path("/models/NAVA")
+OUTPUT_ROOT = Path("/outputs")
+NAVA_ROOT = Path("/opt/NAVA")
+
+app = modal.App(APP_NAME)
+model_volume = modal.Volume.from_name("nava-model-cache", create_if_missing=True)
+output_volume = modal.Volume.from_name("nava-generated-videos", create_if_missing=True)
+
+runtime = (
+    modal.Image.from_registry(
+        "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04",
+        add_python="3.11",
+    )
+    .apt_install("ffmpeg", "git", "ninja-build")
+    .run_commands(
+        "pip install --index-url https://download.pytorch.org/whl/cu128 "
+        "torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1"
+    )
+    .pip_install(
+        "accelerate",
+        "diffusers",
+        "einops",
+        "fastapi[standard]",
+        "huggingface-hub",
+        "PyYAML",
+        "safetensors",
+        "scipy",
+        "sentencepiece",
+        "tqdm",
+        "transformers",
+    )
+    .run_commands(
+        "git clone --depth 1 https://github.com/ernie-research/NAVA.git /opt/NAVA",
+        "pip install wheel",
+        "pip install flash-attn --no-build-isolation",
+    )
+    .env(
+        {
+            "HF_HOME": "/models/hf-cache",
+            "HF_HUB_DISABLE_XET": "1",
+            "PYTORCH_CUDA_ALLOC_CONF": "expandable_segments:True",
+            "SETUPTOOLS_USE_DISTUTILS": "stdlib",
+        }
+    )
+)
+
+web_runtime = modal.Image.debian_slim(python_version="3.11").pip_install(
+    "fastapi[standard]"
+)
+huggingface_secret = modal.Secret.from_name("huggingface")
+
+
+@app.cls(
+    image=runtime,
+    gpu="H200",
+    memory=131072,
+    timeout=20 * 60,
+    scaledown_window=5 * 60,
+    max_containers=1,
+    secrets=[huggingface_secret],
+    volumes={
+        "/models": model_volume,
+        str(OUTPUT_ROOT): output_volume,
+    },
+)
+class NAVA:
+    @modal.enter()
+    def download_models(self):
+        from huggingface_hub import snapshot_download
+
+        snapshot_download(MODEL_REPO, local_dir=MODEL_ROOT)
+        model_volume.commit()
+
+    @modal.method()
+    def generate(
+        self,
+        *,
+        prompt: str,
+        width: int = 1280,
+        height: int = 704,
+        num_frames: int = 37,
+        frame_rate: int = 24,
+        steps: int = 50,
+        seed: int = 0,
+        image_base64: str | None = None,
+        speaker_wav_base64: str | None = None,
+    ) -> dict:
+        if not prompt.strip():
+            raise ValueError("prompt cannot be empty")
+        if (width, height) not in {(1280, 704), (960, 960)}:
+            raise ValueError("NAVA supports 1280x704 or 960x960")
+        if num_frames not in {37, 61} or frame_rate != 24:
+            raise ValueError("NAVA supports 37 or 61 frames at 24 fps")
+        if steps != 50:
+            raise ValueError("The initial NAVA deployment requires 50 steps")
+
+        request_id = uuid.uuid4().hex
+        work_dir = Path("/tmp") / f"nava-{request_id}"
+        work_dir.mkdir(parents=True)
+        sample: dict[str, object] = {"prompt": prompt}
+        if image_base64:
+            image_path = work_dir / "reference.png"
+            image_path.write_bytes(base64.b64decode(image_base64, validate=True))
+            sample["image_path"] = str(image_path)
+        if speaker_wav_base64:
+            voice_path = work_dir / "speaker.wav"
+            voice_path.write_bytes(
+                base64.b64decode(speaker_wav_base64, validate=True)
+            )
+            sample["spk_wavs"] = [str(voice_path)]
+
+        data_path = work_dir / "request.jsonl"
+        data_path.write_text(json.dumps(sample, ensure_ascii=False) + "\n", encoding="utf-8")
+        output_dir = work_dir / "result"
+        command = [
+            "python",
+            str(NAVA_ROOT / "inference_nava.py"),
+            "--config",
+            str(
+                NAVA_ROOT
+                / "configs/baseline_t2av_demo_mmdit_no_split_ltx_control_unipc.yaml"
+            ),
+            "--ckpt",
+            str(MODEL_ROOT / "NAVA_fp8.safetensors"),
+            "--out_dir",
+            str(output_dir),
+            "--data_format",
+            "json",
+            "--data_file",
+            str(data_path),
+            "--width",
+            str(width),
+            "--height",
+            str(height),
+            "--frames",
+            str(num_frames),
+            "--fps",
+            str(frame_rate),
+            "--steps",
+            str(steps),
+            "--seed",
+            str(seed),
+            "--save_sample",
+            "--gen_turn",
+            "1",
+        ]
+        if speaker_wav_base64:
+            command.extend(
+                ["--timbre_cfg", "--timbre_align_guidance_scale", "3.0"]
+            )
+
+        started = time.monotonic()
+        subprocess.run(command, cwd=NAVA_ROOT, check=True)
+        candidates = sorted(
+            output_dir.rglob("*.mp4"), key=lambda path: path.stat().st_mtime
+        )
+        if not candidates:
+            raise RuntimeError("NAVA completed without producing an MP4")
+        output_id = f"{int(time.time())}-{request_id}.mp4"
+        output_path = OUTPUT_ROOT / output_id
+        output_path.write_bytes(candidates[-1].read_bytes())
+        output_volume.commit()
+        return {
+            "status": "complete",
+            "output_id": output_id,
+            "width": width,
+            "height": height,
+            "frames": num_frames,
+            "frame_rate": frame_rate,
+            "duration_seconds": 10 if num_frames == 61 else 6,
+            "seed": seed,
+            "render_seconds": time.monotonic() - started,
+        }
+
+
+@app.function(image=web_runtime, volumes={str(OUTPUT_ROOT): output_volume})
+@modal.asgi_app(requires_proxy_auth=True)
+def nava_api():
+    from fastapi import FastAPI, HTTPException
+    from fastapi.responses import FileResponse, JSONResponse
+    from pydantic import BaseModel, Field, model_validator
+
+    web = FastAPI(title="NAVA Native Audio-Video", version="0.1.0")
+
+    class GenerationRequest(BaseModel):
+        prompt: str = Field(min_length=1, max_length=2000)
+        width: int = 1280
+        height: int = 704
+        num_frames: int = 37
+        frame_rate: int = 24
+        steps: int = 50
+        seed: int = Field(default=0, ge=0)
+        image_base64: str | None = None
+        speaker_wav_base64: str | None = None
+
+        @model_validator(mode="after")
+        def supported_shape(self):
+            if (self.width, self.height) not in {(1280, 704), (960, 960)}:
+                raise ValueError("NAVA supports 1280x704 or 960x960")
+            if self.num_frames not in {37, 61} or self.frame_rate != 24:
+                raise ValueError("NAVA supports 37 or 61 frames at 24 fps")
+            if self.steps != 50:
+                raise ValueError("NAVA currently requires 50 steps")
+            return self
+
+    @web.get("/health")
+    async def health():
+        return {"status": "ok", "model": MODEL_REPO, "gpu": "H200"}
+
+    @web.post("/generate", status_code=202)
+    async def generate(request: GenerationRequest):
+        call = await NAVA().generate.spawn.aio(**request.model_dump())
+        return {
+            "status": "queued",
+            "call_id": call.object_id,
+            "result_path": f"/result/{call.object_id}",
+        }
+
+    @web.get("/result/{call_id}")
+    async def result(call_id: str):
+        call = modal.FunctionCall.from_id(call_id)
+        try:
+            result_data = await call.get.aio(timeout=0)
+        except TimeoutError:
+            return JSONResponse({"status": "running"}, status_code=202)
+        except modal.exception.OutputExpiredError:
+            raise HTTPException(status_code=404, detail="Job result expired")
+        result_data["download_path"] = f"/video/{result_data['output_id']}"
+        return result_data
+
+    @web.get("/video/{output_id}")
+    async def video(output_id: str):
+        if Path(output_id).name != output_id or not output_id.endswith(".mp4"):
+            raise HTTPException(status_code=400, detail="Invalid output id")
+        await output_volume.reload.aio()
+        path = OUTPUT_ROOT / output_id
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="Video not found")
+        return FileResponse(path, media_type="video/mp4", filename=output_id)
+
+    return web

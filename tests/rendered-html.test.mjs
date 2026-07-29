@@ -140,6 +140,10 @@ test("separates picture and video creation models", async () => {
     new URL("../lib/ai-picture-models.ts", import.meta.url),
     "utf8",
   );
+  const videoModels = await readFile(
+    new URL("../lib/ai-video-models.ts", import.meta.url),
+    "utf8",
+  );
   const pictureDimensions = [
     ...pictureModels.matchAll(/\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}/g),
   ];
@@ -160,7 +164,9 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Wan \+ LTX/);
   assert.match(source, /Choose reference image/);
   assert.match(source, /Choose and preview a reference image/);
-  assert.match(source, /LTX accepts an optional reference image/);
+  assert.match(source, /accepts an optional reference image and generates synchronized audio/);
+  assert.match(videoModels, /NAVA 6\.3B/);
+  assert.match(source, /Reference voice/);
   assert.match(source, /Animate picture/);
   assert.match(source, /referenceMediaId/);
   assert.match(source, /Generation preset/);

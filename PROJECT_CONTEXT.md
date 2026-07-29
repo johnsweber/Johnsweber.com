@@ -214,6 +214,20 @@ five minutes; this is an estimate, not provider telemetry.
   - Hugging Face Xet is disabled for model downloads because its hash parser
     failed during the first cold start; authenticated HTTP downloads populate
     the persistent model volume instead.
+- NAVA 6.3B (experimental implementation)
+  - Jointly generates video, scene audio, speech, and lip synchronization from
+    text, with an optional first-frame image.
+  - A consent-approved WAV may condition one reference voice; dialogue uses
+    NAVA's `<S>spoken words<E>` prompt spans. Voice files are sent to the
+    generation provider and are not written to the timing log.
+  - Initial single-GPU target is one H200, FP8 backbone, one container/request,
+    scale-to-zero, 50 steps, and either 1280x704 or 960x960.
+  - Initial durations are the official 37-frame (~6 second) and 61-frame
+    (~10 second) modes at 24 fps. The UI estimates 7 and 12 minutes until real
+    anonymous timing data is available.
+  - Runtime URL: `NAVA_MODAL_URL`; Modal source is `modal_nava.py`.
+  - No paid NAVA inference is part of validation. Endpoint deployment and a
+    first controlled generation are separate rollout steps.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 
@@ -382,6 +396,7 @@ Encrypted Worker runtime values:
 - `WAN22_MODAL_URL`
 - `LTX23_MODAL_URL`
 - `Z_IMAGE_MODAL_URL`
+- `NAVA_MODAL_URL`
 - `LOCAL_IMAGE_GATEWAY_URL`
 - `LOCAL_IMAGE_GATEWAY_TOKEN`
 - `MEDIA_TOOLS_MODAL_URL`

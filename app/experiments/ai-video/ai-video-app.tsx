@@ -993,6 +993,7 @@ function CreateView() {
   const [generationPreset, setGenerationPreset] = useState<GenerationPreset>("test");
   const [gpuTemperature, setGpuTemperature] = useState<GpuTemperature>("checking");
   const [source, setSource] = useState<File | null>(null);
+  const [voiceReference, setVoiceReference] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [seed, setSeed] = useState(0);
@@ -1009,14 +1010,14 @@ function CreateView() {
   const renderEstimateSeconds = useMemo(() => {
     const baseEstimate = videoModelKey === "wan22"
       ? quality === "720p" ? 600 : 300
-      : 180;
+      : videoModelKey === "nava" ? 420 : 180;
     const basePixels = videoModelKey === "wan22"
       ? quality === "720p" ? 1280 * 720 : 832 * 480
-      : 768 * 512;
+      : videoModelKey === "nava" ? 1280 * 704 : 768 * 512;
     const pixels = videoModelKey === "wan22"
       ? basePixels
       : outputWidth * outputHeight;
-    const baseFrames = videoModelKey === "wan22" ? 81 : 121;
+    const baseFrames = videoModelKey === "wan22" ? 81 : videoModelKey === "nava" ? 37 : 121;
     const computeScale =
       (pixels / basePixels) *
       (numFrames / baseFrames) *
@@ -1158,14 +1159,15 @@ function CreateView() {
   function chooseVideoModel(next: AiVideoModelKey) {
     setVideoModelKey(next);
     setGenerationPreset("test");
-    setQuality(next === "wan22" ? "480p" : "standard");
-    setOutputWidth(256);
-    setOutputHeight(256);
-    setNumFrames(9);
-    setFrameRate(1);
-    setInferenceSteps(1);
+    setQuality(next === "wan22" ? "480p" : next === "nava" ? "landscape" : "standard");
+    setOutputWidth(next === "nava" ? 1280 : 256);
+    setOutputHeight(next === "nava" ? 704 : 256);
+    setNumFrames(next === "nava" ? 37 : 9);
+    setFrameRate(next === "nava" ? 24 : 1);
+    setInferenceSteps(next === "nava" ? 50 : 1);
     setGuidanceScale(0);
     setVideoCrf(28);
+    setVoiceReference(null);
   }
 
   function applyGenerationPreset(preset: Exclude<GenerationPreset, "custom">) {
@@ -1194,6 +1196,15 @@ function CreateView() {
         setGuidanceScale(3.5);
         setVideoCrf(14);
       }
+      return;
+    }
+    if (videoModelKey === "nava") {
+      setQuality("landscape");
+      setOutputWidth(1280);
+      setOutputHeight(704);
+      setNumFrames(preset === "max" ? 61 : 37);
+      setFrameRate(24);
+      setInferenceSteps(50);
       return;
     }
     if (preset === "test") {
@@ -1258,10 +1269,18 @@ function CreateView() {
         return;
       }
 
+      if (videoModelKey === "nava" && useProduction) {
+        throw new Error(
+          "NAVA Production is staged but not enabled while its Modal image finishes validation. Demo mode is available now.",
+        );
+      }
       const form = new FormData();
       form.set("modelKey", videoModelKey);
       form.set("quality", quality);
-      form.set("duration", "5");
+      form.set(
+        "duration",
+        videoModelKey === "nava" ? (numFrames === 61 ? "10" : "6") : "5",
+      );
       form.set("outputWidth", String(outputWidth));
       form.set("outputHeight", String(outputHeight));
       form.set("numFrames", String(numFrames));
@@ -1282,6 +1301,9 @@ function CreateView() {
         const uploadSource = await optimizeReferenceImage(source);
         form.set("sourceImage", uploadSource);
         setSubmissionStatus("Submitting…");
+      }
+      if (videoModelKey === "nava" && voiceReference) {
+        form.set("voiceReference", voiceReference);
       }
       else if (animateMediaId) form.set("referenceMediaId", animateMediaId);
       if (extendMediaId) form.set("extendMediaId", extendMediaId);
@@ -1428,7 +1450,7 @@ function CreateView() {
                       ? "Upload a JPG, PNG, or WebP up to 12 MB."
                       : "Choose and preview a reference image. Demo mode still returns a sample video."
                     : useProduction
-                      ? "LTX accepts an optional reference image and generates synchronized audio."
+                      ? `${videoModel.name} accepts an optional reference image and generates synchronized audio.`
                       : "Optionally preview a reference image. Demo mode returns a free example video."}
               </small>
             </div>
@@ -1528,6 +1550,23 @@ function CreateView() {
               />
             </label>
           )}
+          {creationType === "video" && videoModelKey === "nava" && (
+            <div className="aiv-reference-block">
+              <span className="aiv-reference-label">Reference voice <i>optional</i></span>
+              <label className={`aiv-upload ${voiceReference ? "has-preview" : ""}`}>
+                <Upload aria-hidden="true" />
+                <strong>{voiceReference?.name || "Choose a consent-approved WAV"}</strong>
+                <span>
+                  Binds a voice to dialogue inside &lt;S&gt;spoken words&lt;E&gt;. WAV, up to 10 MB.
+                </span>
+                <input
+                  type="file"
+                  accept="audio/wav,.wav"
+                  onChange={(event) => setVoiceReference(event.target.files?.[0] || null)}
+                />
+              </label>
+            </div>
+          )}
         </section>
 
         <section className="aiv-form-section">
@@ -1592,7 +1631,7 @@ function CreateView() {
                       </label>
                     );
                   })
-                ) : videoModelKey === "wan22" ? (
+                ) : videoModelKey !== "ltx23" ? (
                   Object.entries(videoModel.qualities).map(([key, option]) => (
                     <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => customize(() => setQuality(key))} /><span>{option.label}</span></label>
                   ))
@@ -1614,7 +1653,7 @@ function CreateView() {
                   <strong>Generation controls</strong>
                   <small>{numFrames} frames at {frameRate} fps · about {(numFrames / frameRate).toFixed(2)} seconds</small>
                 </div>
-                <span>{videoModelKey === "wan22" ? "WAN 2.2" : "LTX-2.3"}</span>
+                <span>{videoModel.name}</span>
               </div>
               <div className="aiv-generation-options">
                 {videoModelKey === "ltx23" && (
@@ -1626,17 +1665,17 @@ function CreateView() {
                 <GenerationRange
                   label="Frames"
                   value={numFrames}
-                  min={9}
-                  max={videoModelKey === "wan22" ? 161 : 241}
-                  step={videoModelKey === "wan22" ? 4 : 8}
-                  hint={videoModelKey === "wan22" ? "Must be 4n + 1" : "Must be 8n + 1"}
+                  min={videoModelKey === "nava" ? 37 : 9}
+                  max={videoModelKey === "wan22" ? 161 : videoModelKey === "nava" ? 61 : 241}
+                  step={videoModelKey === "wan22" ? 4 : videoModelKey === "nava" ? 24 : 8}
+                  hint={videoModelKey === "wan22" ? "Must be 4n + 1" : videoModelKey === "nava" ? "37 ≈ 6s; 61 ≈ 10s" : "Must be 8n + 1"}
                   onChange={value => customize(() => setNumFrames(value))}
                 />
                 <GenerationRange
                   label="Frame rate"
                   value={frameRate}
-                  min={1}
-                  max={videoModelKey === "wan22" ? 30 : 50}
+                  min={videoModelKey === "nava" ? 24 : 1}
+                  max={videoModelKey === "wan22" ? 30 : videoModelKey === "nava" ? 24 : 50}
                   step={1}
                   hint="Playback frames per second"
                   onChange={value => customize(() => setFrameRate(value))}

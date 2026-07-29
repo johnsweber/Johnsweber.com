@@ -114,6 +114,7 @@ export async function POST(request: Request) {
     const sourceModelKey = String(form.get("sourceModelKey") || "");
     const seedValue = Number(form.get("seed") || Math.floor(Math.random() * 2_147_483_647));
     const source = form.get("sourceImage");
+    const voiceReference = form.get("voiceReference");
     const referenceMediaId = String(form.get("referenceMediaId") || "");
     const extendMediaId = String(form.get("extendMediaId") || "");
     const requestedSceneId = String(form.get("sceneId") || "");
@@ -160,14 +161,28 @@ export async function POST(request: Request) {
     ) {
       return Response.json({ error: "LTX width and height must be 256–1920 pixels in 32-pixel increments." }, { status: 400 });
     }
-    const maxFrames = modelKey === "wan22" ? 161 : 241;
+    const maxFrames = modelKey === "wan22" ? 161 : modelKey === "nava" ? 61 : 241;
     const frameStep = modelKey === "wan22" ? 4 : 8;
-    if (!Number.isInteger(frames) || frames < 9 || frames > maxFrames || (frames - 1) % frameStep !== 0) {
+    const validFrames = modelKey === "nava"
+      ? frames === 37 || frames === 61
+      : Number.isInteger(frames) && frames >= 9 && frames <= maxFrames && (frames - 1) % frameStep === 0;
+    if (!validFrames) {
       return Response.json({ error: `${model.name} frame count must be 9–${maxFrames} in ${frameStep}-frame increments.` }, { status: 400 });
     }
     const maxFps = modelKey === "wan22" ? 30 : 50;
     if (!Number.isInteger(fps) || fps < 1 || fps > maxFps) {
       return Response.json({ error: `${model.name} frame rate must be 1–${maxFps} fps.` }, { status: 400 });
+    }
+    if (modelKey === "nava" && fps !== 24) {
+      return Response.json({ error: "NAVA currently requires 24 fps." }, { status: 400 });
+    }
+    if (
+      modelKey === "nava" &&
+      voiceReference instanceof File &&
+      voiceReference.size > 0 &&
+      (voiceReference.type !== "audio/wav" || voiceReference.size > 10 * 1024 * 1024)
+    ) {
+      return Response.json({ error: "NAVA voice references must be WAV files up to 10 MB." }, { status: 400 });
     }
     if (
       modelKey === "wan22" &&
@@ -177,7 +192,9 @@ export async function POST(request: Request) {
     ) {
       return Response.json({ error: "Wan controls are outside the supported range." }, { status: 400 });
     }
-    const durationSeconds = Number((frames / fps).toFixed(3));
+    const durationSeconds = modelKey === "nava"
+      ? settings.duration.seconds
+      : Number((frames / fps).toFixed(3));
     const recordedQuality = modelKey === "ltx23" ? `${width}x${height}` : qualityKey;
     const computeScale =
       (width * height) / (settings.quality.width * settings.quality.height) *
@@ -285,6 +302,8 @@ export async function POST(request: Request) {
         videoCrf,
         seed: seedValue,
         hasReferenceImage: Boolean(sourceObjectKey),
+        hasVoiceReference:
+          voiceReference instanceof File && voiceReference.size > 0,
         production: useProduction,
         stopGpuWhenQueueComplete,
       },
@@ -426,6 +445,12 @@ export async function POST(request: Request) {
       return Response.json({ error: "This model endpoint is not configured yet.", jobId: id }, { status: 503 });
     }
 
+    const voiceReferenceBase64 =
+      modelKey === "nava" &&
+      voiceReference instanceof File &&
+      voiceReference.size > 0
+        ? Buffer.from(await voiceReference.arrayBuffer()).toString("base64")
+        : undefined;
     const payload =
       modelKey === "wan22"
         ? {
@@ -447,6 +472,12 @@ export async function POST(request: Request) {
             num_frames: frames,
             frame_rate: fps,
             seed: seedValue,
+            ...(modelKey === "nava"
+              ? {
+                  steps: inferenceSteps,
+                  speaker_wav_base64: voiceReferenceBase64,
+                }
+              : {}),
             ...(imageBytes
               ? {
                   image_base64: Buffer.from(imageBytes).toString("base64"),
