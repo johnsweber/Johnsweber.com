@@ -52,6 +52,7 @@ export async function refreshProcessingTask(task: AiVideoProcessingTask) {
     if (!response.ok) throw new Error("Media processing failed.");
     const result = await response.json() as {
       status?: string; download_path?: string; last_frame_path?: string;
+      duration_seconds?: number;
     };
     if (result.status !== "complete") return task;
     if (task.task_type === "last_frame" && task.output_media_id && result.last_frame_path) {
@@ -62,6 +63,7 @@ export async function refreshProcessingTask(task: AiVideoProcessingTask) {
       const media = await getAiVideoMediaItem(task.output_media_id, task.user_id);
       await updateAiVideoMedia(task.output_media_id, task.user_id, {
         status: "complete", thumbnail_object_key: key, last_frame_object_key: key,
+        ...(Number.isFinite(result.duration_seconds) ? { duration_seconds: result.duration_seconds } : {}),
         completed_at: new Date().toISOString(), error_message: null,
       });
       if (media?.job_id) await updateAiVideoJob(media.job_id, task.user_id, {
@@ -85,6 +87,7 @@ export async function refreshProcessingTask(task: AiVideoProcessingTask) {
       await updateAiVideoMedia(task.output_media_id, task.user_id, {
         status: "complete", content_object_key: key, content_mime_type: "video/mp4",
         thumbnail_object_key: frameKey, last_frame_object_key: frameKey,
+        ...(Number.isFinite(result.duration_seconds) ? { duration_seconds: result.duration_seconds } : {}),
         completed_at: new Date().toISOString(), error_message: null,
       });
     }

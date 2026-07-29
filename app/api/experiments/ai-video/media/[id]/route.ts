@@ -5,6 +5,7 @@ import {
   getAiVideoMedia,
   getAiVideoMediaItem,
   getSceneForMedia,
+  updateAiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
 import {
@@ -75,5 +76,33 @@ export async function DELETE(
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error: "Unable to delete this media." }, { status: 500 });
+  }
+}
+
+export async function PATCH(
+  request: Request,
+  context: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await requireApiUser(request);
+    const { id } = await context.params;
+    await ensureAiVideoSchema();
+    const media = await getAiVideoMediaItem(id, user.id);
+    if (!media || media.media_type !== "video") {
+      return Response.json({ error: "Video not found." }, { status: 404 });
+    }
+    const input = await request.json() as { durationSeconds?: number };
+    const duration = Number(input.durationSeconds);
+    if (!Number.isFinite(duration) || duration <= 0 || duration > 86_400) {
+      return Response.json({ error: "Invalid video duration." }, { status: 400 });
+    }
+    await updateAiVideoMedia(id, user.id, {
+      duration_seconds: Math.round(duration * 1_000) / 1_000,
+    });
+    const updated = await getAiVideoMediaItem(id, user.id);
+    return Response.json({ media: updated ? publicAiVideoMedia(updated) : null });
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return Response.json({ error: "Unable to update video metadata." }, { status: 500 });
   }
 }

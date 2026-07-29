@@ -231,12 +231,15 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Reference image/);
   assert.match(app, /Previewing the saved frame/);
   assert.match(app, /function SceneView/);
+  assert.match(app, /onLoadedMetadata/);
+  assert.match(app, /durationSeconds: duration/);
   assert.match(app, /Export scene/);
   assert.match(database, /ai_video_scene_items/);
   assert.match(database, /last_frame_object_key/);
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);
+  assert.match(modal, /format=duration/);
   assert.match(modal, /Range/);
   assert.match(modal, /range\(4\)/);
   assert.match(processingSource, /Content-Range/);

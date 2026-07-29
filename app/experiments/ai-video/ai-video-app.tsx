@@ -33,6 +33,7 @@ import {
   useState,
   type FormEvent,
   type ReactNode,
+  type SyntheticEvent,
 } from "react";
 import { useAuthConfigured } from "@/app/auth-provider";
 import { AI_VIDEO_MODELS, type AiVideoModelKey } from "@/lib/ai-video-models";
@@ -112,6 +113,14 @@ function modelName(media: PublicMedia) {
 
 function isPending(status: MediaStatus) {
   return status === "submitted" || status === "pending";
+}
+
+function formatDuration(seconds: number | null | undefined) {
+  if (!seconds || !Number.isFinite(seconds)) return "—";
+  const rounded = Math.round(seconds);
+  const minutes = Math.floor(rounded / 60);
+  const remainder = rounded % 60;
+  return `${minutes}:${String(remainder).padStart(2, "0")}`;
 }
 
 function formatRemaining(job: PublicJob) {
@@ -228,6 +237,7 @@ function PrivateMediaAsset({
   className,
   children,
   onEnded,
+  onDuration,
 }: {
   mediaId: string;
   mediaType: CreationType;
@@ -235,6 +245,7 @@ function PrivateMediaAsset({
   className?: string;
   children?: ReactNode;
   onEnded?: () => void;
+  onDuration?: (seconds: number) => void;
 }) {
   const authorizedFetch = useAuthorizedFetch();
   const [url, setUrl] = useState("");
@@ -262,7 +273,18 @@ function PrivateMediaAsset({
 
   if (!url) return <>{children}</>;
   return mediaType === "video" && !thumbnail ? (
-    <video className={className} src={url} controls autoPlay playsInline onEnded={onEnded} />
+    <video
+      className={className}
+      src={url}
+      controls
+      autoPlay
+      playsInline
+      onEnded={onEnded}
+      onLoadedMetadata={(event: SyntheticEvent<HTMLVideoElement>) => {
+        const duration = event.currentTarget.duration;
+        if (Number.isFinite(duration) && duration > 0) onDuration?.(duration);
+      }}
+    />
   ) : (
     <img className={className} src={url} alt="" />
   );
@@ -351,7 +373,7 @@ function MediaCard({
           )}
         </div>
         <span>
-          {modelName(media)} · {media.mediaType === "video" ? `${media.durationSeconds}s · ` : ""}
+          {modelName(media)} · {media.mediaType === "video" ? `${formatDuration(media.durationSeconds)} · ` : ""}
           {media.quality}
         </span>
       </div>
@@ -936,6 +958,19 @@ function MediaView({
   const [media, setMedia] = useState<PublicMedia | null>(initialMedia);
   const [error, setError] = useState("");
   const [sceneId, setSceneId] = useState<string | null>(null);
+  const [actualDuration, setActualDuration] = useState<number | null>(null);
+  const savedDuration = useRef<number | null>(null);
+
+  const captureDuration = useCallback((duration: number) => {
+    setActualDuration(duration);
+    if (savedDuration.current === duration) return;
+    savedDuration.current = duration;
+    void authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ durationSeconds: duration }),
+    });
+  }, [authorizedFetch, mediaId]);
 
   useEffect(() => {
     if (media?.status === "complete" || media?.status === "failed") return;
@@ -979,7 +1014,12 @@ function MediaView({
       ) : (
         <section className="aiv-player">
           <div className={`aiv-video-stage ${media.mediaType === "picture" ? "picture" : ""}`}>
-            <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType === "video" ? "video" : "picture"} className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}>
+            <PrivateMediaAsset
+              mediaId={media.id}
+              mediaType={media.mediaType === "video" ? "video" : "picture"}
+              className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}
+              onDuration={media.mediaType === "video" ? captureDuration : undefined}
+            >
               <div className="aiv-player-message">Preparing secure {media.mediaType}…</div>
             </PrivateMediaAsset>
           </div>
@@ -987,7 +1027,7 @@ function MediaView({
             <div><p className="aiv-kicker">{modelName(media)}</p><h1>{media.prompt}</h1></div>
             <span>
               {media.width} × {media.height}
-              {media.durationSeconds ? ` · ${media.durationSeconds}s` : ""}
+              {media.mediaType === "video" ? ` · ${formatDuration(actualDuration ?? media.durationSeconds)}` : ""}
               {" · "}Seed {media.seed}
             </span>
           </div>
@@ -1022,6 +1062,20 @@ function SceneView({ sceneId }: { sceneId: string }) {
   const [task, setTask] = useState<PublicTask | null>(null);
   const [error, setError] = useState("");
   const [exporting, setExporting] = useState(false);
+  const savedSceneDurations = useRef(new Map<string, number>());
+
+  const captureSceneDuration = useCallback((mediaId: string, duration: number) => {
+    setItems(currentItems => currentItems.map(item =>
+      item.id === mediaId ? { ...item, durationSeconds: duration } : item
+    ));
+    if (savedSceneDurations.current.get(mediaId) === duration) return;
+    savedSceneDurations.current.set(mediaId, duration);
+    void authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ durationSeconds: duration }),
+    });
+  }, [authorizedFetch]);
 
   const load = useCallback(async () => {
     const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}`);
@@ -1078,13 +1132,14 @@ function SceneView({ sceneId }: { sceneId: string }) {
         <section className="aiv-player">
           <div className="aiv-video-stage">
             <PrivateMediaAsset key={`${current.id}-${index}`} mediaId={current.id} mediaType="video" className="aiv-video"
-              onEnded={() => setIndex(value => value + 1 < items.length ? value + 1 : 0)}>
+              onEnded={() => setIndex(value => value + 1 < items.length ? value + 1 : 0)}
+              onDuration={(duration) => captureSceneDuration(current.id, duration)}>
               <div className="aiv-player-message">Preparing clip {index + 1}…</div>
             </PrivateMediaAsset>
           </div>
           <div className="aiv-player-info">
             <div><p className="aiv-kicker">SCENE · CLIP {index + 1} OF {items.length}</p><h1>{title}</h1><p>{current.prompt}</p></div>
-            <span>{items.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)}s total</span>
+            <span>{formatDuration(items.reduce((sum, item) => sum + (item.durationSeconds || 0), 0))} total</span>
           </div>
           <div className="aiv-scene-strip">
             {items.map((item, itemIndex) => (

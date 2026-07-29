@@ -71,6 +71,14 @@ def _frame(source: pathlib.Path, output: pathlib.Path):
     ], check=True, capture_output=True)
 
 
+def _duration(source: pathlib.Path) -> float:
+    probe = subprocess.run([
+        "ffprobe", "-v", "error", "-show_entries", "format=duration",
+        "-of", "default=noprint_wrappers=1:nokey=1", str(source),
+    ], check=True, capture_output=True, text=True)
+    return round(float(probe.stdout.strip()), 3)
+
+
 @app.function(image=image, volumes={str(ROOT): volume}, cpu=2, timeout=900)
 def extract_last_frame(source_url: str, access_token: str):
     item = uuid.uuid4().hex
@@ -80,7 +88,11 @@ def extract_last_frame(source_url: str, access_token: str):
     _download(source_url, source, access_token)
     _frame(source, frame)
     volume.commit()
-    return {"status": "complete", "last_frame_path": f"/frame/{item}"}
+    return {
+        "status": "complete",
+        "last_frame_path": f"/frame/{item}",
+        "duration_seconds": _duration(source),
+    }
 
 
 @app.function(image=image, volumes={str(ROOT): volume}, cpu=4, timeout=1800)
@@ -121,6 +133,7 @@ def merge_videos(source_urls: list[str], access_token: str):
         "status": "complete",
         "download_path": f"/output/{item}",
         "last_frame_path": f"/frame/{item}",
+        "duration_seconds": _duration(output),
     }
 
 

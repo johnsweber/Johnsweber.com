@@ -93,6 +93,8 @@ AI Video experiment (login required):
   the user-owned media row, linked video job, and associated private R2 objects.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state. Completed videos with a saved last frame offer **Extend video**.
+  Video players read the file's actual metadata duration and persist it back to
+  the owned media record, correcting older configuration-derived durations.
 - `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
   play in creation order and Export queues a CPU-only FFmpeg merge that creates
   a new private video library item.
@@ -168,6 +170,8 @@ Job lifecycle:
 10. Scene Export always supplies authenticated private clip URLs to the CPU
     service, regardless of the Demo/Production generation toggle;
     the merged MP4 and its last frame return to R2 as a new video media item.
+    FFprobe records the exported file's measured duration rather than the sum
+    of requested clip durations.
 11. Private thumbnail/content routes stream only after verifying ownership.
 
 Generation environment:

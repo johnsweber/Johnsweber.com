@@ -505,6 +505,7 @@ export async function updateAiVideoMedia(
       | "last_frame_object_key"
       | "content_object_key"
       | "content_mime_type"
+      | "duration_seconds"
       | "error_message"
       | "completed_at"
     >
