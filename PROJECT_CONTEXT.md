@@ -141,6 +141,9 @@ Video models are declared in `lib/ai-video-models.ts`.
     and a deterministic seed.
   - Lowest-compute defaults are 480p, 9 frames, 1 fps, 1 inference step,
     guidance 0, CRF 28, and seed 0.
+  - One-click presets: Test uses those minimums; Fast uses 480p, 81 frames at
+    16 fps, 20 steps, guidance 3.5, and CRF 23; Max uses 720p, 161 frames at
+    16 fps, 80 steps, guidance 3.5, and CRF 14.
   - Runtime URL: `WAN22_MODAL_URL`.
   - Current Modal app/function: `video-models` / `wan_api`.
   - Current base route:
@@ -154,6 +157,8 @@ Video models are declared in `lib/ai-video-models.ts`.
   - Creator exposes 256–1920 width and height in 32-pixel increments,
     9–241 frames in `8n+1` increments, 1–50 fps, and a deterministic seed.
   - Lowest-compute defaults are `256x256`, 9 frames, 1 fps, and seed 0.
+  - One-click presets: Test uses those minimums; Fast uses `768x512`, 121
+    frames at 24 fps; Max uses `1920x1088`, 241 frames at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
 
 Picture creation uses the protected local GPU/ComfyUI connection:

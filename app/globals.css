@@ -1842,6 +1842,15 @@ body.menu-open { overflow: hidden; }
 .aiv-field input, .aiv-seed input { min-height: 48px; padding: 0 .9rem; }
 .aiv-field textarea:focus, .aiv-field input:focus, .aiv-seed input:focus { border-color: var(--aiv-violet); box-shadow: 0 0 0 3px rgba(104,69,223,.1); }
 .aiv-field > small { position: absolute; right: .8rem; bottom: .7rem; color: var(--aiv-muted); font-size: .68rem; }
+.aiv-preset-row { position: relative; margin-bottom: 1.5rem; display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .65rem; }
+.aiv-preset-row > button { min-height: 84px; padding: .85rem 1rem; display: flex; flex-direction: column; align-items: flex-start; justify-content: center; gap: .35rem; border: 1px solid var(--aiv-line); border-radius: 16px; color: var(--aiv-ink); background: rgba(255,255,255,.55); text-align: left; font: inherit; cursor: pointer; }
+.aiv-preset-row > button:hover { border-color: rgba(104,69,223,.45); transform: translateY(-1px); }
+.aiv-preset-row > button.selected { color: white; border-color: var(--aiv-violet); background: linear-gradient(135deg,var(--aiv-violet),#865fe8); box-shadow: 0 10px 24px rgba(104,69,223,.18); }
+.aiv-preset-row strong { width: 100%; display: flex; align-items: center; justify-content: space-between; gap: .5rem; font-size: .82rem; }
+.aiv-preset-row strong span { padding: .2rem .4rem; border-radius: 999px; color: var(--aiv-violet); background: white; font-size: .5rem; letter-spacing: .08em; text-transform: uppercase; }
+.aiv-preset-row small { color: var(--aiv-muted); font-size: .65rem; line-height: 1.35; }
+.aiv-preset-row > button.selected small { color: rgba(255,255,255,.78); }
+.aiv-custom-badge { position: absolute; right: 0; bottom: -.95rem; padding: .2rem .5rem; border-radius: 999px; color: var(--aiv-violet); background: rgba(104,69,223,.1); font-size: .58rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
 .aiv-setting-row { display: grid; grid-template-columns: minmax(0,1fr) minmax(220px,.75fr); gap: 1rem; }
 .aiv-setting-row fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .aiv-setting-row legend, .aiv-seed { margin-bottom: .6rem; }
@@ -2066,6 +2075,7 @@ body.menu-open { overflow: hidden; }
   .aiv-hero-orbit { width: min(330px,80vw); }
   .aiv-model-grid, .aiv-choice-grid { grid-template-columns: 1fr; }
   .aiv-library-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .aiv-preset-row { grid-template-columns: 1fr; }
   .aiv-setting-row { grid-template-columns: 1fr; }
   .aiv-generation-options { grid-template-columns: 1fr; }
   .aiv-create-submit, .aiv-section-title, .aiv-player-info { align-items: stretch; flex-direction: column; }

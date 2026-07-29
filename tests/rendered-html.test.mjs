@@ -139,6 +139,12 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Choose and preview a reference image/);
   assert.match(source, /Animate picture/);
   assert.match(source, /referenceMediaId/);
+  assert.match(source, /Generation preset/);
+  assert.match(source, /Cheapest settings to verify the pipeline/);
+  assert.match(source, /Balanced settings for a short, viewable result/);
+  assert.match(source, /Highest-quality supported output/);
+  assert.match(source, /applyGenerationPreset/);
+  assert.match(source, /setGenerationPreset\("custom"\)/);
   assert.doesNotMatch(source, /videoModel\.supportsImage && useProduction && \(/);
   assert.match(source, /onSubmit=\{submit\} noValidate/);
   assert.doesNotMatch(source, /disabled=\{\s*submitting \|\|\s*!prompt/);

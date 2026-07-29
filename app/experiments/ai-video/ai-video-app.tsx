@@ -50,6 +50,7 @@ type CreationType = "picture" | "video";
 type MediaType = CreationType | "scene";
 type MediaStatus = "submitted" | "pending" | "complete" | "failed";
 type PictureModelKey = "base" | "animagine";
+type GenerationPreset = "test" | "fast" | "max" | "custom";
 
 const PICTURE_MODELS = {
   base: {
@@ -942,6 +943,7 @@ function CreateView() {
   const [inferenceSteps, setInferenceSteps] = useState(1);
   const [guidanceScale, setGuidanceScale] = useState(0);
   const [videoCrf, setVideoCrf] = useState(28);
+  const [generationPreset, setGenerationPreset] = useState<GenerationPreset>("test");
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -995,6 +997,7 @@ function CreateView() {
 
   function chooseVideoModel(next: AiVideoModelKey) {
     setVideoModelKey(next);
+    setGenerationPreset("test");
     setQuality(next === "wan22" ? "480p" : "standard");
     setOutputWidth(256);
     setOutputHeight(256);
@@ -1004,6 +1007,57 @@ function CreateView() {
     setGuidanceScale(0);
     setVideoCrf(28);
     if (next === "ltx23") setSource(null);
+  }
+
+  function applyGenerationPreset(preset: Exclude<GenerationPreset, "custom">) {
+    setGenerationPreset(preset);
+    setSeed(0);
+    if (videoModelKey === "wan22") {
+      if (preset === "test") {
+        setQuality("480p");
+        setNumFrames(9);
+        setFrameRate(1);
+        setInferenceSteps(1);
+        setGuidanceScale(0);
+        setVideoCrf(28);
+      } else if (preset === "fast") {
+        setQuality("480p");
+        setNumFrames(81);
+        setFrameRate(16);
+        setInferenceSteps(20);
+        setGuidanceScale(3.5);
+        setVideoCrf(23);
+      } else {
+        setQuality("720p");
+        setNumFrames(161);
+        setFrameRate(16);
+        setInferenceSteps(80);
+        setGuidanceScale(3.5);
+        setVideoCrf(14);
+      }
+      return;
+    }
+    if (preset === "test") {
+      setOutputWidth(256);
+      setOutputHeight(256);
+      setNumFrames(9);
+      setFrameRate(1);
+    } else if (preset === "fast") {
+      setOutputWidth(768);
+      setOutputHeight(512);
+      setNumFrames(121);
+      setFrameRate(24);
+    } else {
+      setOutputWidth(1920);
+      setOutputHeight(1088);
+      setNumFrames(241);
+      setFrameRate(24);
+    }
+  }
+
+  function customize(action: () => void) {
+    setGenerationPreset("custom");
+    action();
   }
 
   async function submit(event: FormEvent) {
@@ -1274,6 +1328,27 @@ function CreateView() {
               <small>Every available {creationType === "video" ? `${videoModel.name} ` : ""}option is shown. Lowest-compute values are selected by default.</small>
             </div>
           </div>
+          {creationType === "video" && (
+            <div className="aiv-preset-row" role="group" aria-label="Generation preset">
+              {([
+                ["test", "Test", "Cheapest settings to verify the pipeline."],
+                ["fast", "Fast", "Balanced settings for a short, viewable result."],
+                ["max", "Max", "Highest-quality supported output."],
+              ] as const).map(([key, label, description]) => (
+                <button
+                  key={key}
+                  type="button"
+                  className={generationPreset === key ? "selected" : ""}
+                  aria-pressed={generationPreset === key}
+                  onClick={() => applyGenerationPreset(key)}
+                >
+                  <strong>{label}{key === "test" && <span>Default</span>}</strong>
+                  <small>{description}</small>
+                </button>
+              ))}
+              {generationPreset === "custom" && <span className="aiv-custom-badge">Custom</span>}
+            </div>
+          )}
           <div className="aiv-setting-row">
             <fieldset>
               <legend>{videoModelKey === "wan22" || creationType === "picture" ? "Resolution" : "Canvas"}</legend>
@@ -1282,7 +1357,7 @@ function CreateView() {
                   <label><input type="radio" checked readOnly /><span>1024 × 576</span></label>
                 ) : videoModelKey === "wan22" ? (
                   Object.entries(videoModel.qualities).map(([key, option]) => (
-                    <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => setQuality(key)} /><span>{option.label}</span></label>
+                    <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => customize(() => setQuality(key))} /><span>{option.label}</span></label>
                   ))
                 ) : (
                   <span className="aiv-custom-canvas">{outputWidth} × {outputHeight}</span>
@@ -1291,7 +1366,7 @@ function CreateView() {
             </fieldset>
             <label className="aiv-seed">
               Seed
-              <input type="number" min="0" max="2147483647" step="1" value={seed} onChange={(event) => setSeed(Number(event.target.value))} />
+              <input type="number" min="0" max="2147483647" step="1" value={seed} onChange={(event) => customize(() => setSeed(Number(event.target.value)))} />
               <small>0 is the lowest valid deterministic seed.</small>
             </label>
           </div>
@@ -1307,8 +1382,8 @@ function CreateView() {
               <div className="aiv-generation-options">
                 {videoModelKey === "ltx23" && (
                   <>
-                    <GenerationRange label="Width" value={outputWidth} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={setOutputWidth} />
-                    <GenerationRange label="Height" value={outputHeight} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={setOutputHeight} />
+                    <GenerationRange label="Width" value={outputWidth} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={value => customize(() => setOutputWidth(value))} />
+                    <GenerationRange label="Height" value={outputHeight} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={value => customize(() => setOutputHeight(value))} />
                   </>
                 )}
                 <GenerationRange
@@ -1318,7 +1393,7 @@ function CreateView() {
                   max={videoModelKey === "wan22" ? 161 : 241}
                   step={videoModelKey === "wan22" ? 4 : 8}
                   hint={videoModelKey === "wan22" ? "Must be 4n + 1" : "Must be 8n + 1"}
-                  onChange={setNumFrames}
+                  onChange={value => customize(() => setNumFrames(value))}
                 />
                 <GenerationRange
                   label="Frame rate"
@@ -1327,13 +1402,13 @@ function CreateView() {
                   max={videoModelKey === "wan22" ? 30 : 50}
                   step={1}
                   hint="Playback frames per second"
-                  onChange={setFrameRate}
+                  onChange={value => customize(() => setFrameRate(value))}
                 />
                 {videoModelKey === "wan22" && (
                   <>
-                    <GenerationRange label="Inference steps" value={inferenceSteps} min={1} max={80} step={1} hint="More steps can add detail but take longer" onChange={setInferenceSteps} />
-                    <GenerationRange label="Guidance scale" value={guidanceScale} min={0} max={20} step={0.5} hint="How strongly the prompt guides motion" onChange={setGuidanceScale} />
-                    <GenerationRange label="Compression (CRF)" value={videoCrf} min={14} max={28} step={1} hint="28 makes the smallest output; 14 preserves more detail" onChange={setVideoCrf} />
+                    <GenerationRange label="Inference steps" value={inferenceSteps} min={1} max={80} step={1} hint="More steps can add detail but take longer" onChange={value => customize(() => setInferenceSteps(value))} />
+                    <GenerationRange label="Guidance scale" value={guidanceScale} min={0} max={20} step={0.5} hint="How strongly the prompt guides motion" onChange={value => customize(() => setGuidanceScale(value))} />
+                    <GenerationRange label="Compression (CRF)" value={videoCrf} min={14} max={28} step={1} hint="28 makes the smallest output; 14 preserves more detail" onChange={value => customize(() => setVideoCrf(value))} />
                   </>
                 )}
               </div>
