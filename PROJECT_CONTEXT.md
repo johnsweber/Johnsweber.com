@@ -254,6 +254,10 @@ five minutes; this is an estimate, not provider telemetry.
   - `/generate` explicitly reads and validates its JSON body before spawning
     the GPU method. This avoids FastAPI treating the locally declared request
     model as a required query parameter.
+  - Inference stdout/stderr is captured to a request-local log. A non-zero
+    inference exit returns the useful tail as a terminal `status: failed`
+    result, so the Worker records the actual model diagnostic and stops polling
+    instead of retrying a generic HTTP 500.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 

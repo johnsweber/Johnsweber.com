@@ -171,7 +171,31 @@ class NAVA:
             )
 
         started = time.monotonic()
-        subprocess.run(command, cwd=NAVA_ROOT, check=True)
+        inference_log = work_dir / "inference.log"
+        with inference_log.open("w", encoding="utf-8") as log:
+            completed = subprocess.run(
+                command,
+                cwd=NAVA_ROOT,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                text=True,
+                check=False,
+            )
+        if completed.returncode:
+            log_text = inference_log.read_text(
+                encoding="utf-8",
+                errors="replace",
+            )
+            useful_lines = [
+                line.strip()
+                for line in log_text.splitlines()
+                if line.strip()
+            ][-40:]
+            detail = "\n".join(useful_lines)[-8_000:]
+            raise RuntimeError(
+                f"NAVA inference exited with status {completed.returncode}."
+                + (f"\n{detail}" if detail else " No diagnostic output was produced.")
+            )
         candidates = sorted(
             output_dir.rglob("*.mp4"), key=lambda path: path.stat().st_mtime
         )
@@ -250,6 +274,17 @@ def nava_api():
             return JSONResponse({"status": "running"}, status_code=202)
         except modal.exception.OutputExpiredError:
             raise HTTPException(status_code=404, detail="Job result expired")
+        except (
+            RuntimeError,
+            ValueError,
+            subprocess.CalledProcessError,
+            modal.exception.UserCodeException,
+        ) as error:
+            message = str(error).strip() or "NAVA inference failed without a diagnostic."
+            return JSONResponse(
+                {"status": "failed", "error": message[-8_000:]},
+                status_code=200,
+            )
         result_data["download_path"] = f"/video/{result_data['output_id']}"
         return result_data
 

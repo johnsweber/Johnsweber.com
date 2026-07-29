@@ -180,6 +180,10 @@ test("separates picture and video creation models", async () => {
   assert.match(navaModal, /"--weight_dtype"/);
   assert.match(navaModal, /request=Body\(\.\.\.\)/);
   assert.match(navaModal, /GenerationRequest\.model_validate\(request\)/);
+  assert.match(navaModal, /stderr=subprocess\.STDOUT/);
+  assert.match(navaModal, /NAVA inference exited with status/);
+  assert.match(navaModal, /modal\.exception\.UserCodeException/);
+  assert.match(navaModal, /\{"status": "failed", "error": message\[-8_000:\]\}/);
   assert.doesNotMatch(navaModal, /request: GenerationRequest/);
   assert.match(source, /Reference voice/);
   assert.match(source, /const activeSection/);
