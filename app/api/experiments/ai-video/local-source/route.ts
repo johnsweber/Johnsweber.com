@@ -32,6 +32,7 @@ export async function POST(request: Request) {
       displayName?: string;
       email?: string;
       avatarUrl?: string;
+      stopGpuWhenQueueComplete?: boolean;
     };
     const prompt = input.prompt?.trim() || "";
     const negativePrompt = input.negativePrompt?.trim() || "";
@@ -39,6 +40,8 @@ export async function POST(request: Request) {
     const seed = Number.isInteger(input.seed)
       ? Number(input.seed)
       : Math.floor(Math.random() * 2_147_483_647);
+    const stopGpuWhenQueueComplete =
+      useProduction && input.stopGpuWhenQueueComplete === true;
     if (!prompt || prompt.length > 2_000) {
       return Response.json(
         { error: "Add a picture prompt up to 2,000 characters." },
@@ -85,7 +88,12 @@ export async function POST(request: Request) {
       completed_at: null,
     };
     await insertAiVideoMedia(media);
-    await updateAiVideoMedia(mediaId, user.id, { status: "pending" });
+    await updateAiVideoMedia(mediaId, user.id, {
+      status: "pending",
+      stop_gpu_when_queue_complete: stopGpuWhenQueueComplete ? 1 : 0,
+      gpu_shutdown_status: stopGpuWhenQueueComplete ? "waiting" : "not_requested",
+      gpu_shutdown_message: null,
+    });
 
     if (!useProduction) {
       const asset = demoAssetFor("picture", seed);

@@ -25,6 +25,8 @@ export type AiVideoJob = {
   output_object_key: string | null;
   output_mime_type: string | null;
   error_message: string | null;
+  provider_last_contact_at?: string | null;
+  retry_count?: number;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -50,6 +52,9 @@ export type AiVideoMedia = {
   content_object_key: string | null;
   content_mime_type: string | null;
   error_message: string | null;
+  stop_gpu_when_queue_complete?: number;
+  gpu_shutdown_status?: "not_requested" | "waiting" | "unsupported" | "complete" | "failed";
+  gpu_shutdown_message?: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -66,7 +71,18 @@ export type AiVideoProcessingTask = {
   source_media_id: string | null; scene_id: string | null; output_media_id: string | null;
   modal_call_id: string | null; modal_result_path: string | null;
   access_token_hash: string | null; error_message: string | null;
+  provider_last_contact_at?: string | null; retry_count?: number;
   created_at: string; updated_at: string; completed_at: string | null;
+};
+
+export type AiVideoReconcilerState = {
+  id: number;
+  lease_until: string | null;
+  last_run_at: string | null;
+  last_success_at: string | null;
+  last_error: string | null;
+  jobs_checked: number;
+  tasks_checked: number;
 };
 
 type RuntimeBindings = {
@@ -147,6 +163,8 @@ export async function ensureAiVideoSchema() {
         output_object_key TEXT,
         output_mime_type TEXT,
         error_message TEXT,
+        provider_last_contact_at TEXT,
+        retry_count INTEGER DEFAULT 0 NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT
@@ -185,6 +203,9 @@ export async function ensureAiVideoSchema() {
         content_object_key TEXT,
         content_mime_type TEXT,
         error_message TEXT,
+        stop_gpu_when_queue_complete INTEGER DEFAULT 0 NOT NULL,
+        gpu_shutdown_status TEXT DEFAULT 'not_requested' NOT NULL,
+        gpu_shutdown_message TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT
@@ -223,10 +244,18 @@ export async function ensureAiVideoSchema() {
       status TEXT DEFAULT 'submitted' NOT NULL, progress INTEGER DEFAULT 0 NOT NULL,
       source_media_id TEXT, scene_id TEXT, output_media_id TEXT, modal_call_id TEXT,
       modal_result_path TEXT, access_token_hash TEXT, error_message TEXT,
+      provider_last_contact_at TEXT, retry_count INTEGER DEFAULT 0 NOT NULL,
       created_at TEXT NOT NULL, updated_at TEXT NOT NULL, completed_at TEXT
     )`),
     db.prepare(`CREATE INDEX IF NOT EXISTS ai_video_processing_user_status_idx ON ai_video_processing_tasks(user_id, status)`),
     db.prepare(`CREATE INDEX IF NOT EXISTS ai_video_processing_scene_idx ON ai_video_processing_tasks(scene_id)`),
+    db.prepare(`CREATE TABLE IF NOT EXISTS ai_video_reconciler_state (
+      id INTEGER PRIMARY KEY NOT NULL, lease_until TEXT, last_run_at TEXT,
+      last_success_at TEXT, last_error TEXT, jobs_checked INTEGER DEFAULT 0 NOT NULL,
+      tasks_checked INTEGER DEFAULT 0 NOT NULL
+    )`),
+    db.prepare(`INSERT OR IGNORE INTO ai_video_reconciler_state
+      (id, jobs_checked, tasks_checked) VALUES (1, 0, 0)`),
     db.prepare(`
       INSERT OR IGNORE INTO ai_video_media (
         id, user_id, media_type, status, model_key, prompt, negative_prompt,
@@ -355,6 +384,21 @@ export async function listAiVideoJobs(userId: string) {
   return result.results;
 }
 
+export async function listActiveAiVideoJobs(limit = 8) {
+  const result = await (await getAiVideoDb())
+    .prepare(`
+      SELECT * FROM ai_video_jobs
+      WHERE status IN ('queued', 'running')
+        AND modal_result_path IS NOT NULL
+        AND output_object_key IS NULL
+      ORDER BY updated_at ASC
+      LIMIT ?
+    `)
+    .bind(limit)
+    .all<AiVideoJob>();
+  return result.results;
+}
+
 export async function getAiVideoJob(id: string, userId: string) {
   return (await getAiVideoDb())
     .prepare("SELECT * FROM ai_video_jobs WHERE id = ? AND user_id = ?")
@@ -388,6 +432,8 @@ export async function updateAiVideoJob(
       | "last_frame_object_key"
       | "output_mime_type"
       | "error_message"
+      | "provider_last_contact_at"
+      | "retry_count"
       | "completed_at"
     >
   >,
@@ -541,6 +587,9 @@ export async function updateAiVideoMedia(
       | "content_mime_type"
       | "duration_seconds"
       | "error_message"
+      | "stop_gpu_when_queue_complete"
+      | "gpu_shutdown_status"
+      | "gpu_shutdown_message"
       | "completed_at"
     >
   >,
@@ -701,6 +750,84 @@ export async function listProcessingTasks(userId: string) {
     ORDER BY created_at DESC
     LIMIT 100
   `).bind(userId).all<AiVideoProcessingTask>().then(result => result.results);
+}
+
+export async function listActiveProcessingTasks(limit = 8) {
+  return (await getAiVideoDb()).prepare(`
+    SELECT * FROM ai_video_processing_tasks
+    WHERE status IN ('submitted', 'pending')
+      AND modal_result_path IS NOT NULL
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(limit).all<AiVideoProcessingTask>().then(result => result.results);
+}
+
+export async function acquireAiVideoReconcilerLease(now: string, leaseUntil: string) {
+  const result = await (await getAiVideoDb()).prepare(`
+    UPDATE ai_video_reconciler_state
+    SET lease_until = ?, last_run_at = ?
+    WHERE id = 1 AND (lease_until IS NULL OR lease_until < ?)
+  `).bind(leaseUntil, now, now).run();
+  return Number(result.meta.changes || 0) === 1;
+}
+
+export async function finishAiVideoReconcilerRun(input: {
+  now: string;
+  error?: string | null;
+  jobsChecked: number;
+  tasksChecked: number;
+}) {
+  await (await getAiVideoDb()).prepare(`
+    UPDATE ai_video_reconciler_state
+    SET lease_until = NULL,
+        last_success_at = CASE WHEN ? IS NULL THEN ? ELSE last_success_at END,
+        last_error = ?,
+        jobs_checked = ?,
+        tasks_checked = ?
+    WHERE id = 1
+  `).bind(
+    input.error || null,
+    input.now,
+    input.error || null,
+    input.jobsChecked,
+    input.tasksChecked,
+  ).run();
+}
+
+export async function getAiVideoReconcilerState() {
+  return (await getAiVideoDb())
+    .prepare("SELECT * FROM ai_video_reconciler_state WHERE id = 1")
+    .first<AiVideoReconcilerState>();
+}
+
+export async function listWaitingGpuShutdownMedia(limit = 20) {
+  return (await getAiVideoDb()).prepare(`
+    SELECT * FROM ai_video_media
+    WHERE stop_gpu_when_queue_complete = 1
+      AND gpu_shutdown_status = 'waiting'
+      AND status IN ('complete', 'failed')
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(limit).all<AiVideoMedia>().then(result => result.results);
+}
+
+export async function hasActiveGpuWorkForModel(modelKey: string) {
+  const db = await getAiVideoDb();
+  if (modelKey === "wan22" || modelKey === "ltx23") {
+    const row = await db.prepare(`
+      SELECT 1 AS active FROM ai_video_jobs
+      WHERE model_key = ? AND status IN ('queued', 'running')
+      LIMIT 1
+    `).bind(modelKey).first<{ active: number }>();
+    return Boolean(row?.active);
+  }
+  const row = await db.prepare(`
+    SELECT 1 AS active FROM ai_video_media
+    WHERE model_key = ? AND media_type = 'picture'
+      AND status IN ('submitted', 'pending')
+    LIMIT 1
+  `).bind(modelKey).first<{ active: number }>();
+  return Boolean(row?.active);
 }
 
 export async function getPendingTaskForMedia(mediaId: string, type: AiVideoProcessingTask["task_type"]) {

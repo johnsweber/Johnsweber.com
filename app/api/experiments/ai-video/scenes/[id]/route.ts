@@ -7,8 +7,8 @@ import {
   updateAiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { publicAiVideoMedia, refreshAiVideoMediaItem } from "@/lib/ai-video-service";
-import { publicProcessingTask, refreshProcessingTask } from "@/lib/ai-video-processing";
+import { publicAiVideoMedia } from "@/lib/ai-video-service";
+import { publicProcessingTask } from "@/lib/ai-video-processing";
 
 export const dynamic = "force-dynamic";
 
@@ -19,17 +19,11 @@ export async function GET(request: Request, context: { params: Promise<{ id: str
     await ensureAiVideoSchema();
     const result = await getAiVideoScene(id, user.id);
     if (!result) return Response.json({ error: "Scene not found." }, { status: 404 });
-    const items = await Promise.all(result.items.map(item =>
-      item.status === "submitted" || item.status === "pending"
-        ? refreshAiVideoMediaItem(item, new URL(request.url).origin)
-        : item
-    ));
     const task = await getProcessingTaskForScene(result.scene.id);
-    const refreshed = task ? await refreshProcessingTask(task) : null;
     return Response.json({
       scene: { id: result.scene.id, mediaId: result.scene.media_id, title: result.scene.title },
-      items: items.map(publicAiVideoMedia),
-      exportTask: refreshed ? publicProcessingTask(refreshed) : null,
+      items: result.items.map(publicAiVideoMedia),
+      exportTask: task ? publicProcessingTask(task) : null,
     });
   } catch (error) {
     if (error instanceof Response) return error;

@@ -113,6 +113,8 @@ export async function POST(request: Request) {
     const referenceMediaId = String(form.get("referenceMediaId") || "");
     const extendMediaId = String(form.get("extendMediaId") || "");
     const requestedSceneId = String(form.get("sceneId") || "");
+    const stopGpuWhenQueueComplete =
+      useProduction && String(form.get("stopGpuWhenQueueComplete") || "") === "true";
     const settings = getGenerationSettings(modelKey, qualityKey, durationKey);
 
     if (!settings) {
@@ -280,6 +282,11 @@ export async function POST(request: Request) {
       completed_at: null,
     };
     await insertAiVideoMedia(media);
+    await updateAiVideoMedia(id, user.id, {
+      stop_gpu_when_queue_complete: stopGpuWhenQueueComplete ? 1 : 0,
+      gpu_shutdown_status: stopGpuWhenQueueComplete ? "waiting" : "not_requested",
+      gpu_shutdown_message: null,
+    });
 
     const job: AiVideoJob = {
       id,

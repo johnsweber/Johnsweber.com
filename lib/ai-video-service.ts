@@ -9,6 +9,7 @@ import {
   type AiVideoJob,
   updateAiVideoMedia,
   updateAiVideoJob,
+  updateProcessingTask,
 } from "@/db/ai-video";
 import { getModelConfig } from "./ai-video-models";
 import {
@@ -17,6 +18,10 @@ import {
   refreshProcessingTask,
   sha256,
 } from "./ai-video-processing";
+import {
+  nextRetryState,
+  providerResponseDisposition,
+} from "./ai-video-reconcile-policy.mjs";
 
 function modalEndpoint(modelKey: string) {
   const model = getModelConfig(modelKey);
@@ -54,6 +59,7 @@ async function failVideoJob(job: AiVideoJob, message: string) {
   await updateAiVideoJob(job.id, job.user_id, {
     status: "failed",
     error_message: message,
+    provider_last_contact_at: completedAt,
     completed_at: completedAt,
   });
   const media = await getAiVideoMediaByJob(job.id, job.user_id);
@@ -83,6 +89,9 @@ export function publicAiVideoJob(job: AiVideoJob) {
     seed: job.seed,
     estimatedSeconds: job.estimated_seconds,
     errorMessage: job.error_message,
+    providerCallId: job.modal_call_id,
+    lastProviderContactAt: job.provider_last_contact_at || null,
+    retryCount: job.retry_count || 0,
     hasThumbnail: Boolean(job.thumbnail_object_key),
     hasLastFrame: Boolean(job.last_frame_object_key),
     hasVideo: Boolean(job.output_object_key),
@@ -109,6 +118,9 @@ export function publicAiVideoMedia(media: AiVideoMedia) {
     hasLastFrame: Boolean(media.last_frame_object_key),
     hasContent: Boolean(media.content_object_key),
     errorMessage: media.error_message,
+    stopGpuWhenQueueComplete: Boolean(media.stop_gpu_when_queue_complete),
+    gpuShutdownStatus: media.gpu_shutdown_status || "not_requested",
+    gpuShutdownMessage: media.gpu_shutdown_message || null,
     createdAt: media.created_at,
     completedAt: media.completed_at,
   };
@@ -140,12 +152,15 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       headers,
       signal: AbortSignal.timeout(15_000),
     });
+    const providerContactAt = new Date().toISOString();
 
     if (resultResponse.status === 202) {
       await updateAiVideoJob(job.id, job.user_id, {
         status: "running",
         progress: estimatedProgress(job),
         error_message: null,
+        provider_last_contact_at: providerContactAt,
+        retry_count: 0,
       });
       const media = await getAiVideoMediaByJob(job.id, job.user_id);
       if (media?.error_message) {
@@ -159,7 +174,11 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       const fallback = resultResponse.status === 404
         ? "The generation result expired before it could be saved."
         : `The video service stopped this generation (HTTP ${resultResponse.status}).`;
-      return failVideoJob(job, providerErrorMessage(body, fallback));
+      const message = providerErrorMessage(body, fallback);
+      if (providerResponseDisposition(resultResponse.status) === "terminal") {
+        return failVideoJob(job, message);
+      }
+      throw new Error(message);
     }
 
     const result = (await resultResponse.json()) as {
@@ -176,7 +195,14 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
         providerErrorMessage(result, "The video provider could not complete this generation."),
       );
     }
-    if (result.status !== "complete") return job;
+    if (result.status !== "complete") {
+      await updateAiVideoJob(job.id, job.user_id, {
+        provider_last_contact_at: providerContactAt,
+        retry_count: 0,
+        error_message: null,
+      });
+      return (await getAiVideoJob(job.id, job.user_id)) || job;
+    }
     const downloadPath = result.download_path ||
       (typeof result.output_id === "string" && result.output_id
         ? `/video/${encodeURIComponent(result.output_id)}`
@@ -215,6 +241,14 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
     await (await getAiVideoMedia()).put(outputKey, videoResponse.body, {
       httpMetadata: { contentType },
     });
+    const afterDownload = await getAiVideoJob(job.id, job.user_id);
+    if (
+      afterDownload?.status === "failed" &&
+      afterDownload.error_message === "Cancelled by user."
+    ) {
+      await (await getAiVideoMedia()).delete(outputKey);
+      return afterDownload;
+    }
 
     const completedAt = new Date().toISOString();
     const media = await getAiVideoMediaByJob(job.id, job.user_id);
@@ -241,18 +275,25 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       });
       const data = await response.json().catch(() => ({})) as { call_id?: string; result_path?: string };
       if (response.ok && data.call_id && data.result_path) {
-        await (await import("@/db/ai-video")).updateProcessingTask(taskId, {
+        await updateProcessingTask(taskId, {
           status: "pending", progress: 10, modal_call_id: data.call_id, modal_result_path: data.result_path,
         });
         await updateAiVideoJob(job.id, job.user_id, {
           status: "running", progress: 96, output_object_key: outputKey,
           output_mime_type: contentType, error_message: null,
+          provider_last_contact_at: providerContactAt, retry_count: 0,
         });
         await updateAiVideoMedia(media.id, job.user_id, {
           status: "pending", content_object_key: outputKey, content_mime_type: contentType, error_message: null,
         });
         return (await getAiVideoJob(job.id, job.user_id)) || job;
       }
+      await updateProcessingTask(taskId, {
+        status: "failed",
+        error_message: "Server-side last-frame extraction could not start.",
+        access_token_hash: null,
+        completed_at: new Date().toISOString(),
+      });
     }
     await updateAiVideoJob(job.id, job.user_id, {
       status: "complete",
@@ -261,6 +302,8 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       output_mime_type: contentType,
       completed_at: completedAt,
       error_message: null,
+      provider_last_contact_at: providerContactAt,
+      retry_count: 0,
     });
     if (media) {
       await updateAiVideoMedia(media.id, job.user_id, {
@@ -273,19 +316,22 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
     }
     return (await getAiVideoJob(job.id, job.user_id)) || job;
   } catch (error) {
-    const message = error instanceof Error
-      ? `Result check delayed: ${error.message}`
-      : "Result check delayed. Retrying automatically.";
+    const baseMessage = error instanceof Error
+      ? error.message
+      : "The provider result check failed.";
+    const retry = nextRetryState(job.retry_count || 0, baseMessage);
+    if (retry.terminal) return failVideoJob(job, retry.message);
     await updateAiVideoJob(job.id, job.user_id, {
       status: "running",
       progress: estimatedProgress(job),
-      error_message: message,
+      error_message: retry.message,
+      retry_count: retry.retryCount,
     });
     const media = await getAiVideoMediaByJob(job.id, job.user_id);
     if (media) {
       await updateAiVideoMedia(media.id, job.user_id, {
         status: "pending",
-        error_message: message,
+        error_message: retry.message,
       });
     }
     return (await getAiVideoJob(job.id, job.user_id)) || job;

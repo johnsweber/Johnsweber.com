@@ -83,6 +83,9 @@ type PublicJob = {
   seed: number;
   estimatedSeconds: number;
   errorMessage: string | null;
+  stopGpuWhenQueueComplete?: boolean;
+  gpuShutdownStatus?: "not_requested" | "waiting" | "unsupported" | "complete" | "failed";
+  gpuShutdownMessage?: string | null;
   hasThumbnail: boolean;
   hasLastFrame: boolean;
   hasVideo: boolean;
@@ -126,6 +129,21 @@ type QueueProcess = {
   errorMessage: string | null;
   createdAt: string;
   updatedAt: string;
+  providerCallId?: string | null;
+  lastProviderContactAt?: string | null;
+  retryCount?: number;
+  hasStoredFile?: boolean;
+  stopGpuWhenQueueComplete?: boolean;
+  gpuShutdownStatus?: string;
+  gpuShutdownMessage?: string | null;
+};
+
+type QueueReconciler = {
+  lastRunAt: string | null;
+  lastSuccessAt: string | null;
+  lastError: string | null;
+  jobsChecked: number;
+  tasksChecked: number;
 };
 
 function modelName(media: PublicMedia) {
@@ -968,6 +986,7 @@ function CreateView() {
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
   const [seed, setSeed] = useState(0);
+  const [stopGpuWhenQueueComplete, setStopGpuWhenQueueComplete] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [submissionStatus, setSubmissionStatus] = useState("");
   const [error, setError] = useState("");
@@ -1150,6 +1169,7 @@ function CreateView() {
               displayName: user?.fullName || "",
               email: user?.primaryEmailAddress?.emailAddress || "",
               avatarUrl: user?.imageUrl || "",
+              stopGpuWhenQueueComplete,
             }),
           },
         );
@@ -1175,6 +1195,7 @@ function CreateView() {
       form.set("prompt", prompt);
       form.set("negativePrompt", negativePrompt);
       form.set("seed", String(seed));
+      form.set("stopGpuWhenQueueComplete", String(stopGpuWhenQueueComplete));
       form.set(
         "sourceProvider",
         useProduction && videoModel.supportsImage ? "upload" : "none",
@@ -1494,6 +1515,19 @@ function CreateView() {
         </section>
 
         {error && <p className="aiv-form-error" role="alert">{error}</p>}
+        {useProduction && (
+          <label className="aiv-gpu-stop-option">
+            <input
+              type="checkbox"
+              checked={stopGpuWhenQueueComplete}
+              onChange={(event) => setStopGpuWhenQueueComplete(event.target.checked)}
+            />
+            <span>
+              <strong>Stop GPU when queue is complete</strong>
+              <small>The server will wait for this model’s queue to empty, then use a supported provider shutdown when available.</small>
+            </span>
+          </label>
+        )}
         {creationType === "video" && (
           <aside className="aiv-live-estimate" aria-live="polite">
             <div>
@@ -1590,17 +1624,20 @@ function QueueView() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [cancelling, setCancelling] = useState<string | null>(null);
+  const [reconciler, setReconciler] = useState<QueueReconciler | null>(null);
 
   const load = useCallback(async () => {
     const response = await authorizedFetch("/api/experiments/ai-video/queue");
     const data = await readApiResponse<{
       processes?: QueueProcess[];
+      reconciler?: QueueReconciler | null;
       error?: string;
     }>(response, "Queue unavailable");
     if (!response.ok || !data.processes) {
       throw new Error(data.error || "Queue unavailable.");
     }
     setProcesses(data.processes);
+    setReconciler(data.reconciler || null);
     setLoading(false);
     setError("");
     return data.processes.some(process =>
@@ -1702,6 +1739,25 @@ function QueueView() {
                     : process.errorMessage || "Stopped with an error"}
           </span>
         </div>
+        <details className="aiv-process-details">
+          <summary>Process details</summary>
+          <dl>
+            <div><dt>Process ID</dt><dd>{process.id}</dd></div>
+            {process.mediaId && <div><dt>Media ID</dt><dd>{process.mediaId}</dd></div>}
+            {process.providerCallId && <div><dt>Provider call</dt><dd>{process.providerCallId}</dd></div>}
+            <div><dt>Submitted</dt><dd>{new Date(process.createdAt).toLocaleString()}</dd></div>
+            <div><dt>Last update</dt><dd>{new Date(process.updatedAt).toLocaleString()}</dd></div>
+            <div><dt>Provider contact</dt><dd>{process.lastProviderContactAt ? new Date(process.lastProviderContactAt).toLocaleString() : "Not contacted yet"}</dd></div>
+            <div><dt>Retries</dt><dd>{process.retryCount || 0}</dd></div>
+            <div><dt>Private file</dt><dd>{process.hasStoredFile ? "Saved to storage" : "Not saved yet"}</dd></div>
+            {process.stopGpuWhenQueueComplete && (
+              <div>
+                <dt>GPU stop</dt>
+                <dd>{process.gpuShutdownStatus === "waiting" ? "Waiting for provider queue" : process.gpuShutdownMessage || process.gpuShutdownStatus}</dd>
+              </div>
+            )}
+          </dl>
+        </details>
         <div className="aiv-queue-actions">
           {destination && <Link href={destination}>Open</Link>}
           {process.cancelable && (
@@ -1725,6 +1781,9 @@ function QueueView() {
   const history = processes.filter(process =>
     process.status === "complete" || process.status === "failed"
   );
+  const recentErrors = processes
+    .filter(process => Boolean(process.errorMessage))
+    .slice(0, 3);
 
   return (
     <main className="aiv-page">
@@ -1737,6 +1796,25 @@ function QueueView() {
             <p>Generation, final-frame, and export work across your private media.</p>
           </div>
         </div>
+        <div className="aiv-reconciler-strip">
+          <span><Settings2 aria-hidden="true" /> Server reconciliation</span>
+          <strong>
+            {reconciler?.lastSuccessAt
+              ? `Last successful check ${new Date(reconciler.lastSuccessAt).toLocaleTimeString()}`
+              : "Waiting for the first scheduled check"}
+          </strong>
+        </div>
+        {recentErrors.length > 0 && (
+          <section className="aiv-recent-errors" aria-labelledby="recent-processing-errors">
+            <h2 id="recent-processing-errors"><AlertTriangle aria-hidden="true" /> Recent issues</h2>
+            {recentErrors.map(process => (
+              <div key={`error-${process.kind}-${process.id}`}>
+                <strong>{process.title}</strong>
+                <span>{process.errorMessage}</span>
+              </div>
+            ))}
+          </section>
+        )}
         {error && <p className="aiv-form-error">{error}</p>}
         {loading ? (
           <div className="aiv-empty">Loading your queue...</div>

@@ -102,7 +102,9 @@ AI Video experiment (login required):
   cancelled; Modal-backed calls are cancelled remotely before their D1 media,
   job, and task records are finalized as stopped. Local picture cancellation
   stops result ingestion even if the already-running local GPU request cannot
-  be interrupted.
+  be interrupted. User-scoped diagnostics include safe IDs, timestamps,
+  provider contact/retry state, and private-file arrival without exposing
+  credentials or object keys.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state. Pending videos show their saved reference/thumbnail as a
   full preview with live generation percentage and estimated time, then
@@ -206,9 +208,12 @@ Job lifecycle:
 3. Video submission also creates a provider-specific `ai_video_jobs` row.
 4. Source media is saved beneath the user's private R2 prefix.
 5. The Worker submits `/generate` to the selected GPU provider.
-6. The UI polls the media/job route while work is pending. WAN results may
+6. A Cloudflare scheduled handler polls pending provider work every minute
+   under a D1 lease that prevents overlapping runs. WAN results may
    identify the completed asset with either `download_path` or `output_id`; an
    `output_id` is resolved through the provider's `/video/:output_id` route.
+   Browser polling reads D1 progress but is not responsible for result
+   ingestion, so closing the browser cannot strand completed work.
 7. The Worker saves the completed picture or downloads the completed MP4 to R2.
 8. Generated videos queue a CPU-only Modal/FFmpeg task to decode and privately
    save the actual final frame. The media remains Pending near completion while
@@ -238,6 +243,13 @@ Generation environment:
   Production it also reports the selected provider as likely Warm or Cold from
   active/recent Modal-backed jobs and the providers' five-minute scaledown
   window. The capacity check never invokes or warms a GPU.
+- Production generation forms offer an opt-in **Stop GPU when queue is
+  complete** preference. The server waits until that model has no queued or
+  running work. Modal currently exposes container termination through its CLI,
+  not a safe authenticated web lifecycle API; invoking a GPU method to stop
+  itself could cold-start a GPU. The queue-empty boundary is active, but the
+  destructive stop is disabled and reported as unsupported while Modal uses
+  its configured idle shutdown.
 - The toggle applies to generative model calls. Deterministic operations on
   already-saved media, including scene playback and CPU/FFmpeg export, always
   operate on the user's actual files.
@@ -273,6 +285,8 @@ Owned only by AI Video:
 - `ai_video_scene_items` — ordered video membership for a scene.
 - `ai_video_processing_tasks` — pending/progress/error state and short-lived
   source authorization for last-frame extraction and scene export.
+- `ai_video_reconciler_state` — singleton lease and last-run health for the
+  browser-independent scheduled reconciler.
 - D1 queries always include `user_id` for user-owned records.
 - R2 keys use:
   `experiments/ai-video/users/{clerkUserId}/{pictures|sources|videos}/...`
@@ -299,6 +313,8 @@ When adding another experiment:
   browser-session mode state.
 - `lib/ai-video-service.ts` — job projection, progress, result ingestion.
 - `lib/ai-video-processing.ts` — CPU task polling and result ingestion.
+- `lib/ai-video-reconciler.ts` — leased scheduled reconciliation and the
+  provider-queue shutdown boundary.
 - `db/schema.ts`, `db/ai-video.ts` — schema and D1 access.
 - `drizzle/` — production SQL migrations.
 - `worker/index.ts` — Cloudflare Worker entry.
@@ -369,15 +385,18 @@ deployment; ask before browser or visual testing.
 ## Known operational constraints
 
 - Modal GPU endpoints are usage-metered and cold starts can dominate latency.
+- Cloudflare Cron Triggers require the account-level `workers.dev` subdomain to
+  be initialized even when the Worker is served only through custom domains.
+  Until that one-time account prerequisite exists, Worker source can deploy but
+  the scheduled reconciler trigger cannot be attached.
 - The local ComfyUI source option works only while the private local gateway is
   online and reachable at its configured URL.
 - Generated media is private in R2; there are no public bucket URLs.
-- Job result ingestion is request/poll driven, not a background queue.
-- Last-frame and export ingestion are also request/poll driven; pending work can
-  be left and safely resumed from the library or scene.
+- Job, last-frame, and export result ingestion is handled by a one-minute
+  Cloudflare scheduled reconciler and no longer depends on an open browser.
 - Result fetches have bounded timeouts. A temporary provider/result-fetch
-  failure leaves the job pending so a later poll can retry, but writes the
-  retry reason to the job and media row. The library tile, queue, and progress
-  view display that warning. Confirmed provider failures atomically mark both
-  the job and media failed and display the terminal error in those same views.
+  failure leaves work pending for up to 12 attempts and records provider
+  contact/retry diagnostics. Confirmed provider failures atomically advance
+  the associated job, media, or processing task to the appropriate terminal
+  state.
 - Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.

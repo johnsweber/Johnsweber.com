@@ -1,6 +1,13 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import {
+  MAX_PROVIDER_RETRIES,
+  nextRetryState,
+  providerResponseDisposition,
+  shouldReconcileJob,
+  shouldReconcileTask,
+} from "../lib/ai-video-reconcile-policy.mjs";
 
 async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -324,7 +331,7 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Retrying automatically/);
   assert.match(videoService, /failVideoJob/);
   assert.match(videoService, /result\.output_id/);
-  assert.match(videoService, /Result check delayed/);
+  assert.match(videoService, /nextRetryState/);
   assert.match(database, /ai_video_scene_items/);
   assert.match(database, /replaceAiVideoSceneItems/);
   assert.match(database, /AS effective_status/);
@@ -352,4 +359,52 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(sceneRoute, /replaceAiVideoSceneItems/);
   assert.match(exportRoute, /Wait for every scene video to finish/);
   assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
+});
+
+test("reconciles provider work with bounded retry and terminal policies", async () => {
+  assert.equal(providerResponseDisposition(202), "ok");
+  assert.equal(providerResponseDisposition(404), "terminal");
+  assert.equal(providerResponseDisposition(429), "retry");
+  assert.equal(providerResponseDisposition(503), "retry");
+  assert.equal(
+    shouldReconcileJob({
+      status: "running",
+      modal_result_path: "/result/test",
+      output_object_key: null,
+    }),
+    true,
+  );
+  assert.equal(
+    shouldReconcileJob({
+      status: "running",
+      modal_result_path: "/result/test",
+      output_object_key: "stored.mp4",
+    }),
+    false,
+  );
+  assert.equal(
+    shouldReconcileTask({ status: "pending", modal_result_path: "/result/task" }),
+    true,
+  );
+  const retry = nextRetryState(MAX_PROVIDER_RETRIES - 1, "temporary outage");
+  assert.equal(retry.terminal, true);
+  assert.equal(retry.retryCount, MAX_PROVIDER_RETRIES);
+  assert.match(retry.message, /stopped after 12 attempts/i);
+
+  const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
+  const reconciler = await readFile(
+    new URL("../lib/ai-video-reconciler.ts", import.meta.url),
+    "utf8",
+  );
+  const queue = await readFile(
+    new URL("../app/api/experiments/ai-video/queue/route.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(worker, /async scheduled/);
+  assert.match(worker, /reconcileAiVideoWork/);
+  assert.match(reconciler, /acquireAiVideoReconcilerLease/);
+  assert.match(reconciler, /Promise\.allSettled/);
+  assert.match(reconciler, /hasActiveGpuWorkForModel/);
+  assert.match(queue, /lastProviderContactAt/);
+  assert.match(queue, /gpuShutdownStatus/);
 });

@@ -64,6 +64,8 @@ export const aiVideoJobs = sqliteTable(
     outputObjectKey: text("output_object_key"),
     outputMimeType: text("output_mime_type"),
     errorMessage: text("error_message"),
+    providerLastContactAt: text("provider_last_contact_at"),
+    retryCount: integer("retry_count").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     completedAt: text("completed_at"),
@@ -99,6 +101,11 @@ export const aiVideoMedia = sqliteTable(
     contentObjectKey: text("content_object_key"),
     contentMimeType: text("content_mime_type"),
     errorMessage: text("error_message"),
+    stopGpuWhenQueueComplete: integer("stop_gpu_when_queue_complete", {
+      mode: "boolean",
+    }).notNull().default(false),
+    gpuShutdownStatus: text("gpu_shutdown_status").notNull().default("not_requested"),
+    gpuShutdownMessage: text("gpu_shutdown_message"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     completedAt: text("completed_at"),
@@ -162,6 +169,8 @@ export const aiVideoProcessingTasks = sqliteTable(
     modalResultPath: text("modal_result_path"),
     accessTokenHash: text("access_token_hash"),
     errorMessage: text("error_message"),
+    providerLastContactAt: text("provider_last_contact_at"),
+    retryCount: integer("retry_count").notNull().default(0),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     completedAt: text("completed_at"),
@@ -171,3 +180,13 @@ export const aiVideoProcessingTasks = sqliteTable(
     index("ai_video_processing_scene_idx").on(table.sceneId),
   ],
 );
+
+export const aiVideoReconcilerState = sqliteTable("ai_video_reconciler_state", {
+  id: integer("id").primaryKey(),
+  leaseUntil: text("lease_until"),
+  lastRunAt: text("last_run_at"),
+  lastSuccessAt: text("last_success_at"),
+  lastError: text("last_error"),
+  jobsChecked: integer("jobs_checked").notNull().default(0),
+  tasksChecked: integer("tasks_checked").notNull().default(0),
+});

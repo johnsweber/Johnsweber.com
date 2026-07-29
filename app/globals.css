@@ -1880,6 +1880,11 @@ body.menu-open { overflow: hidden; }
 .aiv-live-estimate > div > span { display: flex; flex-direction: column; line-height: 1.15; }
 .aiv-live-estimate small { color: var(--aiv-muted); font-size: .55rem; letter-spacing: .06em; text-transform: uppercase; }
 .aiv-live-estimate strong { font-size: .78rem; }
+.aiv-gpu-stop-option { margin: 0 0 1rem; padding: .9rem 1rem; display: flex; align-items: flex-start; gap: .75rem; border: 1px solid rgba(104,69,223,.18); border-radius: 16px; background: rgba(104,69,223,.05); cursor: pointer; }
+.aiv-gpu-stop-option input { width: 18px; height: 18px; margin-top: .12rem; accent-color: var(--aiv-violet); }
+.aiv-gpu-stop-option span { display: flex; flex-direction: column; gap: .2rem; }
+.aiv-gpu-stop-option strong { font-size: .82rem; }
+.aiv-gpu-stop-option small { color: var(--aiv-muted); line-height: 1.4; }
 .aiv-gpu-temperature { padding: .38rem .55rem; display: inline-flex; align-items: center; gap: .38rem; border-radius: 999px; color: var(--aiv-muted); background: rgba(22,18,40,.06); font-size: .64rem; font-weight: 800; white-space: nowrap; }
 .aiv-gpu-temperature i { width: 7px; height: 7px; border-radius: 50%; background: #9a95a6; box-shadow: 0 0 0 3px rgba(154,149,166,.12); }
 .aiv-gpu-temperature.warm { color: #0e7c59; background: rgba(21,155,114,.1); }
@@ -2020,6 +2025,21 @@ body.menu-open { overflow: hidden; }
 .aiv-queue-actions button { color: #a63242; }
 .aiv-queue-actions button:disabled { opacity: .5; cursor: wait; }
 .aiv-queue-actions svg { width: 14px; }
+.aiv-reconciler-strip { margin: 0 0 1rem; padding: .8rem 1rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; border: 1px solid var(--aiv-line); border-radius: 14px; color: var(--aiv-muted); background: rgba(255,255,255,.58); font-size: .72rem; }
+.aiv-reconciler-strip span { display: inline-flex; align-items: center; gap: .45rem; }
+.aiv-reconciler-strip svg { width: 15px; color: var(--aiv-violet); }
+.aiv-reconciler-strip strong { color: var(--aiv-ink); }
+.aiv-recent-errors { margin: 0 0 1.5rem; padding: 1rem; display: grid; gap: .65rem; border: 1px solid rgba(166,50,66,.18); border-radius: 16px; background: rgba(166,50,66,.04); }
+.aiv-recent-errors h2 { margin: 0; display: flex; align-items: center; gap: .45rem; color: #8f2939; font-size: .85rem; }
+.aiv-recent-errors h2 svg { width: 16px; }
+.aiv-recent-errors div { display: grid; grid-template-columns: minmax(140px,.4fr) minmax(0,1fr); gap: .8rem; font-size: .72rem; }
+.aiv-recent-errors span { overflow-wrap: anywhere; color: var(--aiv-muted); }
+.aiv-process-details { margin-top: .75rem; border-top: 1px solid var(--aiv-line); }
+.aiv-process-details summary { width: fit-content; padding-top: .7rem; color: var(--aiv-muted); font-size: .7rem; font-weight: 750; cursor: pointer; }
+.aiv-process-details dl { margin: .65rem 0 0; display: grid; gap: .4rem; }
+.aiv-process-details dl > div { display: grid; grid-template-columns: 120px minmax(0,1fr); gap: .7rem; font-size: .68rem; }
+.aiv-process-details dt { color: var(--aiv-muted); }
+.aiv-process-details dd { margin: 0; overflow-wrap: anywhere; color: var(--aiv-ink); }
 .aiv-card-menu { position: relative; flex: 0 0 auto; }
 .aiv-card-menu summary {
   width: 34px;

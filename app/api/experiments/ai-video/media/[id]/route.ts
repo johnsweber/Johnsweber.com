@@ -12,7 +12,6 @@ import { requireApiUser } from "@/lib/api-auth";
 import {
   publicAiVideoJob,
   publicAiVideoMedia,
-  refreshAiVideoMediaItem,
 } from "@/lib/ai-video-service";
 import { publicProcessingTask } from "@/lib/ai-video-processing";
 
@@ -30,16 +29,15 @@ export async function GET(
     if (!media) {
       return Response.json({ error: "Media not found." }, { status: 404 });
     }
-    const refreshed = await refreshAiVideoMediaItem(media, new URL(request.url).origin);
-    const scene = refreshed.media_type === "video" ? await getSceneForMedia(refreshed.id, user.id) : null;
-    const job = refreshed.job_id
-      ? await getAiVideoJob(refreshed.job_id, user.id)
+    const scene = media.media_type === "video" ? await getSceneForMedia(media.id, user.id) : null;
+    const job = media.job_id
+      ? await getAiVideoJob(media.job_id, user.id)
       : null;
-    const lastFrameTask = refreshed.media_type === "video"
-      ? await getPendingTaskForMedia(refreshed.id, "last_frame")
+    const lastFrameTask = media.media_type === "video"
+      ? await getPendingTaskForMedia(media.id, "last_frame")
       : null;
     return Response.json({
-      media: publicAiVideoMedia(refreshed),
+      media: publicAiVideoMedia(media),
       sceneId: scene?.id || null,
       job: job ? publicAiVideoJob(job) : null,
       lastFrameTask: lastFrameTask ? publicProcessingTask(lastFrameTask) : null,
