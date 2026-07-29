@@ -109,6 +109,7 @@ type PublicMedia = {
   hasLastFrame: boolean;
   hasContent: boolean;
   errorMessage: string | null;
+  retainFailed: boolean;
   createdAt: string;
   completedAt: string | null;
 };
@@ -723,13 +724,16 @@ function PendingBadge({
 function MediaCard({
   media,
   onDelete,
+  onRetentionChange,
 }: {
   media: PublicMedia;
   onDelete?: (id: string) => Promise<void>;
+  onRetentionChange?: (id: string, retain: boolean) => Promise<void>;
 }) {
   const menuRef = useRef<HTMLDetailsElement>(null);
   const [deleting, setDeleting] = useState(false);
   const [deleteError, setDeleteError] = useState("");
+  const [updatingRetention, setUpdatingRetention] = useState(false);
 
   async function handleDelete() {
     if (!onDelete || !window.confirm("Delete this media item and its saved file?")) {
@@ -743,6 +747,20 @@ function MediaCard({
     } catch (error) {
       setDeleteError(error instanceof Error ? error.message : "Unable to delete media.");
       setDeleting(false);
+    }
+  }
+
+  async function handleRetentionChange() {
+    if (!onRetentionChange) return;
+    setUpdatingRetention(true);
+    setDeleteError("");
+    try {
+      await onRetentionChange(media.id, !media.retainFailed);
+      if (menuRef.current) menuRef.current.open = false;
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to update cleanup.");
+    } finally {
+      setUpdatingRetention(false);
     }
   }
 
@@ -784,6 +802,20 @@ function MediaCard({
                 <EllipsisVertical aria-hidden="true" />
               </summary>
               <div className="aiv-card-menu-panel">
+                {media.status === "failed" && onRetentionChange && (
+                  <button
+                    type="button"
+                    onClick={handleRetentionChange}
+                    disabled={updatingRetention}
+                  >
+                    <Save aria-hidden="true" />
+                    {updatingRetention
+                      ? "Savingâ€¦"
+                      : media.retainFailed
+                        ? "Use 24-hour cleanup"
+                        : "Keep past 24 hours"}
+                  </button>
+                )}
                 <button type="button" onClick={handleDelete} disabled={deleting}>
                   <Trash2 aria-hidden="true" />
                   {deleting ? "Deleting…" : "Delete"}
@@ -802,6 +834,9 @@ function MediaCard({
             <AlertTriangle aria-hidden="true" />
             {media.errorMessage}
           </span>
+        )}
+        {media.status === "failed" && media.retainFailed && (
+          <span>Kept until you delete it</span>
         )}
       </div>
     </article>
@@ -857,7 +892,26 @@ function useMedia(enabled: boolean) {
     setMedia((items) => items.filter((item) => item.id !== id));
   }, [authorizedFetch]);
 
-  return { media, loading, error, deleteMedia };
+  const setFailedRetention = useCallback(async (id: string, retain: boolean) => {
+    const response = await authorizedFetch(
+      `/api/experiments/ai-video/media/${id}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retainFailed: retain }),
+      },
+    );
+    const data = await readApiResponse<{ media?: PublicMedia; error?: string }>(
+      response,
+      "Unable to update automatic cleanup",
+    );
+    if (!response.ok || !data.media) {
+      throw new Error(data.error || "Unable to update automatic cleanup.");
+    }
+    setMedia((items) => items.map((item) => item.id === id ? data.media! : item));
+  }, [authorizedFetch]);
+
+  return { media, loading, error, deleteMedia, setFailedRetention };
 }
 
 function HomeView() {
@@ -1801,7 +1855,7 @@ function CreateView() {
 }
 
 function LibraryView() {
-  const { media, loading, error, deleteMedia } = useMedia(true);
+  const { media, loading, error, deleteMedia, setFailedRetention } = useMedia(true);
   const [filter, setFilter] = useState<"all" | MediaType>("all");
   const filtered = filter === "all" ? media : media.filter((item) => item.mediaType === filter);
   return (
@@ -1835,7 +1889,12 @@ function LibraryView() {
         ) : filtered.length ? (
           <div className="aiv-library-grid">
             {filtered.map((item) => (
-              <MediaCard media={item} key={item.id} onDelete={deleteMedia} />
+              <MediaCard
+                media={item}
+                key={item.id}
+                onDelete={deleteMedia}
+                onRetentionChange={setFailedRetention}
+              />
             ))}
           </div>
         ) : (
@@ -2110,6 +2169,25 @@ function MediaView({
     });
   }, [authorizedFetch, mediaId]);
 
+  const setFailedRetention = useCallback(async (retain: boolean) => {
+    const response = await authorizedFetch(
+      `/api/experiments/ai-video/media/${mediaId}`,
+      {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ retainFailed: retain }),
+      },
+    );
+    const data = await readApiResponse<{ media?: PublicMedia; error?: string }>(
+      response,
+      "Unable to update automatic cleanup",
+    );
+    if (!response.ok || !data.media) {
+      throw new Error(data.error || "Unable to update automatic cleanup.");
+    }
+    setMedia(data.media);
+  }, [authorizedFetch, mediaId]);
+
   useEffect(() => {
     let active = true;
     let timer = 0;
@@ -2233,7 +2311,26 @@ function MediaView({
           errorMessage={media.errorMessage}
         />
       ) : media.status === "failed" ? (
-        <section className="aiv-player-message"><strong>Generation stopped</strong><span>{media.errorMessage || "This item could not be completed."}</span><Link href="/experiments/ai-video/create">Try again</Link></section>
+        <section className="aiv-player-message">
+          <strong>Generation stopped</strong>
+          <span>{media.errorMessage || "This item could not be completed."}</span>
+          <span>
+            {media.retainFailed
+              ? "This failed item is kept until you delete it."
+              : "This failed item and its saved files will be deleted automatically after 24 hours."}
+          </span>
+          <div className="aiv-actions">
+            <Link href="/experiments/ai-video/create">Try again</Link>
+            <button
+              type="button"
+              className="secondary"
+              onClick={() => void setFailedRetention(!media.retainFailed)}
+            >
+              <Save aria-hidden="true" />
+              {media.retainFailed ? "Use 24-hour cleanup" : "Keep this item"}
+            </button>
+          </div>
+        </section>
       ) : (
         <section className="aiv-player">
           <div className={`aiv-video-stage ${media.mediaType === "picture" ? "picture" : ""}`}>

@@ -123,6 +123,7 @@ export function publicAiVideoMedia(media: AiVideoMedia) {
     stopGpuWhenQueueComplete: Boolean(media.stop_gpu_when_queue_complete),
     gpuShutdownStatus: media.gpu_shutdown_status || "not_requested",
     gpuShutdownMessage: media.gpu_shutdown_message || null,
+    retainFailed: Boolean(media.retain_failed),
     createdAt: media.created_at,
     completedAt: media.completed_at,
   };

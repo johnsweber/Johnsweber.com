@@ -5,11 +5,14 @@ import {
   hasActiveGpuWorkForModel,
   listActiveAiVideoJobs,
   listActiveProcessingTasks,
+  listExpiredFailedAiVideoMedia,
   listWaitingGpuShutdownMedia,
   updateAiVideoMedia,
 } from "@/db/ai-video";
 import { refreshProcessingTask } from "./ai-video-processing";
 import { refreshAiVideoJob } from "./ai-video-service";
+import { failedMediaCleanupCutoff } from "./ai-video-cleanup-policy.mjs";
+import { purgeAiVideoMedia } from "./ai-video-media-cleanup";
 
 const RECONCILER_BATCH_SIZE = 4;
 const RECONCILER_LEASE_MS = 3 * 60_000;
@@ -100,6 +103,22 @@ export async function reconcileAiVideoWork(
     }
 
     await settleGpuShutdownRequests(errors);
+
+    const expiredMedia = await listExpiredFailedAiVideoMedia(
+      failedMediaCleanupCutoff(now.getTime()),
+    );
+    const cleanupResults = await Promise.allSettled(
+      expiredMedia.map(media => purgeAiVideoMedia(media)),
+    );
+    for (const result of cleanupResults) {
+      if (result.status === "rejected") {
+        errors.push(
+          result.reason instanceof Error
+            ? `Failed media cleanup: ${result.reason.message}`
+            : "Failed media cleanup could not complete.",
+        );
+      }
+    }
   } catch (error) {
     errors.push(
       error instanceof Error ? error.message : "AI Video reconciliation failed.",

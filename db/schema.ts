@@ -134,6 +134,7 @@ export const aiVideoMedia = sqliteTable(
     }).notNull().default(false),
     gpuShutdownStatus: text("gpu_shutdown_status").notNull().default("not_requested"),
     gpuShutdownMessage: text("gpu_shutdown_message"),
+    retainFailed: integer("retain_failed", { mode: "boolean" }).notNull().default(false),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     completedAt: text("completed_at"),
@@ -146,6 +147,11 @@ export const aiVideoMedia = sqliteTable(
       table.createdAt,
     ),
     index("ai_video_media_user_status_idx").on(table.userId, table.status),
+    index("ai_video_media_failed_cleanup_idx").on(
+      table.status,
+      table.retainFailed,
+      table.updatedAt,
+    ),
     uniqueIndex("ai_video_media_job_uq").on(table.jobId),
   ],
 );

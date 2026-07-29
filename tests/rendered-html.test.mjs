@@ -8,6 +8,10 @@ import {
   shouldReconcileJob,
   shouldReconcileTask,
 } from "../lib/ai-video-reconcile-policy.mjs";
+import {
+  FAILED_MEDIA_RETENTION_MS,
+  failedMediaCleanupCutoff,
+} from "../lib/ai-video-cleanup-policy.mjs";
 
 async function render(path = "/") {
   const workerUrl = new URL("../dist/server/index.js", import.meta.url);
@@ -225,13 +229,18 @@ test("deletes only user-owned media records and stored objects", async () => {
     "utf8",
   );
   const database = await readFile(new URL("../db/ai-video.ts", import.meta.url), "utf8");
+  const cleanup = await readFile(
+    new URL("../lib/ai-video-media-cleanup.ts", import.meta.url),
+    "utf8",
+  );
   const app = await readFile(
     new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
     "utf8",
   );
   assert.match(route, /export async function DELETE/);
   assert.match(route, /getAiVideoMediaItem\(id, user\.id\)/);
-  assert.match(route, /\.delete\(objectKeys\)/);
+  assert.match(route, /purgeAiVideoMedia\(media\)/);
+  assert.match(cleanup, /\.delete\(objectKeys\)/);
   assert.match(database, /DELETE FROM ai_video_media WHERE id = \? AND user_id = \?/);
   assert.match(database, /DELETE FROM ai_video_jobs WHERE id = \? AND user_id = \?/);
   assert.match(app, /EllipsisVertical/);
@@ -506,4 +515,34 @@ test("records anonymous generation timing without user or output data", async ()
   assert.match(videoRoute, /insertGenerationMetric/);
   assert.match(videoRoute, /hasReferenceImage/);
   assert.match(pictureRoute, /completeGenerationMetric/);
+});
+
+test("cleans failed media after 24 hours unless the user keeps it", async () => {
+  const now = Date.parse("2026-07-29T12:00:00.000Z");
+  assert.equal(FAILED_MEDIA_RETENTION_MS, 86_400_000);
+  assert.equal(
+    failedMediaCleanupCutoff(now),
+    "2026-07-28T12:00:00.000Z",
+  );
+
+  const database = await readFile(new URL("../db/ai-video.ts", import.meta.url), "utf8");
+  const reconciler = await readFile(
+    new URL("../lib/ai-video-reconciler.ts", import.meta.url),
+    "utf8",
+  );
+  const cleanup = await readFile(
+    new URL("../lib/ai-video-media-cleanup.ts", import.meta.url),
+    "utf8",
+  );
+  const interfaceSource = await readFile(
+    new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(database, /status = 'failed'[\s\S]*retain_failed = 0[\s\S]*updated_at <= \?/);
+  assert.match(reconciler, /failedMediaCleanupCutoff/);
+  assert.match(reconciler, /purgeAiVideoMedia/);
+  assert.match(cleanup, /\.delete\(objectKeys\)/);
+  assert.match(cleanup, /deleteAiVideoMediaItem/);
+  assert.match(interfaceSource, /Keep past 24 hours/);
+  assert.match(interfaceSource, /Keep this item/);
 });

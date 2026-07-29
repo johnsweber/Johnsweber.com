@@ -1,8 +1,6 @@
 import {
-  deleteAiVideoMediaItem,
   ensureAiVideoSchema,
   getAiVideoJob,
-  getAiVideoMedia,
   getAiVideoMediaItem,
   getPendingTaskForMedia,
   getSceneForMedia,
@@ -15,6 +13,7 @@ import {
   refreshAiVideoMediaItem,
 } from "@/lib/ai-video-service";
 import { publicProcessingTask } from "@/lib/ai-video-processing";
+import { purgeAiVideoMedia } from "@/lib/ai-video-media-cleanup";
 
 export const dynamic = "force-dynamic";
 
@@ -63,29 +62,7 @@ export async function DELETE(
       return Response.json({ error: "Media not found." }, { status: 404 });
     }
 
-    const job = media.job_id
-      ? await getAiVideoJob(media.job_id, user.id)
-      : null;
-    const objectKeys = Array.from(
-      new Set(
-        [
-          media.thumbnail_object_key,
-          media.content_object_key,
-          media.last_frame_object_key,
-          job?.source_object_key,
-          job?.thumbnail_object_key,
-          job?.output_object_key,
-          job?.last_frame_object_key,
-        ].filter(
-          (key): key is string => Boolean(key && !key.startsWith("demo:")),
-        ),
-      ),
-    );
-
-    if (objectKeys.length) {
-      await (await getAiVideoMedia()).delete(objectKeys);
-    }
-    await deleteAiVideoMediaItem(media.id, user.id, media.job_id);
+    await purgeAiVideoMedia(media);
     return new Response(null, { status: 204 });
   } catch (error) {
     if (error instanceof Response) return error;
@@ -102,10 +79,29 @@ export async function PATCH(
     const { id } = await context.params;
     await ensureAiVideoSchema();
     const media = await getAiVideoMediaItem(id, user.id);
-    if (!media || media.media_type !== "video") {
+    if (!media) {
+      return Response.json({ error: "Media not found." }, { status: 404 });
+    }
+    const input = await request.json() as {
+      durationSeconds?: number;
+      retainFailed?: boolean;
+    };
+    if (typeof input.retainFailed === "boolean") {
+      if (media.status !== "failed") {
+        return Response.json(
+          { error: "Only failed media can change automatic cleanup." },
+          { status: 400 },
+        );
+      }
+      await updateAiVideoMedia(id, user.id, {
+        retain_failed: input.retainFailed ? 1 : 0,
+      });
+      const updated = await getAiVideoMediaItem(id, user.id);
+      return Response.json({ media: updated ? publicAiVideoMedia(updated) : null });
+    }
+    if (media.media_type !== "video") {
       return Response.json({ error: "Video not found." }, { status: 404 });
     }
-    const input = await request.json() as { durationSeconds?: number };
     const duration = Number(input.durationSeconds);
     if (!Number.isFinite(duration) || duration <= 0 || duration > 86_400) {
       return Response.json({ error: "Invalid video duration." }, { status: 400 });

@@ -357,7 +357,9 @@ Owned only by AI Video:
 
 - `ai_video_media` — unified user library metadata for pictures and videos,
   including `submitted`, `pending`, `complete`, or `failed` status. Existing
-  video jobs are backfilled into this table by migration `0002`.
+  video jobs are backfilled into this table by migration `0002`. Failed picture
+  and video rows default to automatic deletion 24 hours after their most recent
+  failure/update; `retain_failed` is the per-item user override.
 - `ai_video_jobs` — configuration, provider/model, progress, Modal call/result
   references, private object keys, error state, and timestamps for videos.
 - `ai_video_scenes` — user-owned scene metadata and its library media row.
@@ -393,7 +395,11 @@ When adding another experiment:
 - `lib/ai-video-service.ts` — job projection, progress, result ingestion.
 - `lib/ai-video-processing.ts` — CPU task polling and result ingestion.
 - `lib/ai-video-reconciler.ts` — leased scheduled reconciliation and the
-  provider-queue shutdown boundary.
+  provider-queue shutdown boundary. The same browser-independent scheduled run
+  purges failed media older than 24 hours in bounded batches, deleting private
+  R2 objects before D1 metadata. Kept items are excluded.
+- `lib/ai-video-media-cleanup.ts`, `lib/ai-video-cleanup-policy.mjs` — shared,
+  idempotent file/metadata purge and the failed-media retention cutoff.
 - `db/schema.ts`, `db/ai-video.ts` — schema and D1 access.
 - `drizzle/` — production SQL migrations.
 - `worker/index.ts` — Cloudflare Worker entry.

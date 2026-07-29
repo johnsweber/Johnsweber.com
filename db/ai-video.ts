@@ -56,6 +56,7 @@ export type AiVideoMedia = {
   stop_gpu_when_queue_complete?: number;
   gpu_shutdown_status?: "not_requested" | "waiting" | "unsupported" | "complete" | "failed";
   gpu_shutdown_message?: string | null;
+  retain_failed?: number;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -227,6 +228,7 @@ export async function ensureAiVideoSchema() {
         stop_gpu_when_queue_complete INTEGER DEFAULT 0 NOT NULL,
         gpu_shutdown_status TEXT DEFAULT 'not_requested' NOT NULL,
         gpu_shutdown_message TEXT,
+        retain_failed INTEGER DEFAULT 0 NOT NULL,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT
@@ -688,6 +690,7 @@ export async function updateAiVideoMedia(
       | "stop_gpu_when_queue_complete"
       | "gpu_shutdown_status"
       | "gpu_shutdown_message"
+      | "retain_failed"
       | "completed_at"
     >
   >,
@@ -941,6 +944,21 @@ export async function listWaitingGpuShutdownMedia(limit = 20) {
     ORDER BY updated_at ASC
     LIMIT ?
   `).bind(limit).all<AiVideoMedia>().then(result => result.results);
+}
+
+export async function listExpiredFailedAiVideoMedia(
+  cutoff: string,
+  limit = 25,
+) {
+  return (await getAiVideoDb()).prepare(`
+    SELECT * FROM ai_video_media
+    WHERE status = 'failed'
+      AND media_type IN ('picture', 'video')
+      AND retain_failed = 0
+      AND updated_at <= ?
+    ORDER BY updated_at ASC
+    LIMIT ?
+  `).bind(cutoff, limit).all<AiVideoMedia>().then(result => result.results);
 }
 
 export async function hasActiveGpuWorkForModel(modelKey: string) {
