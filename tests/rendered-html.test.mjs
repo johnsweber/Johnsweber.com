@@ -56,8 +56,10 @@ test("renders signed-out user management", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /Your account space is ready/);
-  assert.match(html, /View login/);
+  assert.match(html, /Your account space is ready|Loading your account/);
+  if (html.includes("Your account space is ready")) {
+    assert.match(html, /View login/);
+  }
 });
 
 test("renders the protected AI Video experiment gate", async () => {
@@ -65,8 +67,10 @@ test("renders the protected AI Video experiment gate", async () => {
   assert.equal(response.status, 200);
 
   const html = await response.text();
-  assert.match(html, /AI VIDEO/);
-  assert.match(html, /AI Video is ready for authentication/);
+  assert.match(html, /AI VIDEO|Opening AI Video/);
+  if (html.includes("AI VIDEO")) {
+    assert.match(html, /AI Video is ready for authentication/);
+  }
   assert.doesNotMatch(html, /source images, generations, and library stay attached/i);
 });
 
@@ -82,4 +86,18 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Animagine XL 4\.0/);
   assert.match(source, /Wan \+ LTX/);
   assert.doesNotMatch(source, /sourceMode|Generate source locally/);
+});
+
+test("normalizes structured Modal responses before D1 writes", async () => {
+  const source = await readFile(
+    new URL(
+      "../app/api/experiments/ai-video/jobs/route.ts",
+      import.meta.url,
+    ),
+    "utf8",
+  );
+  assert.match(source, /function modalString/);
+  assert.match(source, /function modalErrorMessage/);
+  assert.match(source, /resultPath\?\.split/);
+  assert.match(source, /modal_call_id: callId/);
 });

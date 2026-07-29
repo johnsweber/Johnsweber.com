@@ -28,6 +28,49 @@ function errorResponse(error: unknown) {
   );
 }
 
+function modalString(value: unknown): string | null {
+  if (typeof value === "string" && value.trim()) return value;
+  if (!value || typeof value !== "object") return null;
+  for (const key of ["object_id", "objectId", "id", "value"]) {
+    const nested = (value as Record<string, unknown>)[key];
+    if (typeof nested === "string" && nested.trim()) return nested;
+  }
+  return null;
+}
+
+function modalErrorMessage(detail: unknown) {
+  if (typeof detail === "string" && detail.trim()) return detail;
+  if (Array.isArray(detail)) {
+    const messages = detail
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (!item || typeof item !== "object") return "";
+        const record = item as Record<string, unknown>;
+        const location = Array.isArray(record.loc)
+          ? record.loc.map(String).join(".")
+          : "";
+        const message =
+          typeof record.msg === "string"
+            ? record.msg
+            : typeof record.message === "string"
+              ? record.message
+              : "";
+        return [location, message].filter(Boolean).join(": ");
+      })
+      .filter(Boolean);
+    if (messages.length) return messages.join("; ");
+  }
+  if (detail && typeof detail === "object") {
+    const record = detail as Record<string, unknown>;
+    for (const key of ["message", "msg", "error"]) {
+      if (typeof record[key] === "string" && record[key].trim()) {
+        return record[key];
+      }
+    }
+  }
+  return "The model could not accept this generation.";
+}
+
 export async function GET(request: Request) {
   try {
     const user = await requireApiUser(request);
@@ -215,14 +258,19 @@ export async function POST(request: Request) {
       body: JSON.stringify(payload),
       signal: AbortSignal.timeout(15_000),
     });
-    const modalData = (await modalResponse.json()) as {
-      call_id?: string;
-      result_path?: string;
-      detail?: string;
+    const modalData = (await modalResponse.json().catch(() => ({}))) as {
+      call_id?: unknown;
+      result_path?: unknown;
+      detail?: unknown;
     };
+    const resultPath = modalString(modalData.result_path);
+    const callId =
+      modalString(modalData.call_id) ||
+      resultPath?.split("/").filter(Boolean).at(-1) ||
+      null;
 
-    if (!modalResponse.ok || !modalData.call_id || !modalData.result_path) {
-      const message = modalData.detail || "The model could not accept this generation.";
+    if (!modalResponse.ok || !callId || !resultPath) {
+      const message = modalErrorMessage(modalData.detail);
       await updateAiVideoJob(id, user.id, { status: "failed", error_message: message });
       await updateAiVideoMedia(id, user.id, {
         status: "failed",
@@ -232,8 +280,8 @@ export async function POST(request: Request) {
     }
 
     await updateAiVideoJob(id, user.id, {
-      modal_call_id: modalData.call_id,
-      modal_result_path: modalData.result_path,
+      modal_call_id: callId,
+      modal_result_path: resultPath,
       status: "queued",
       progress: 4,
     });
@@ -242,7 +290,14 @@ export async function POST(request: Request) {
     });
 
     return Response.json(
-      { job: publicAiVideoJob({ ...job, modal_call_id: modalData.call_id, modal_result_path: modalData.result_path, progress: 4 }) },
+      {
+        job: publicAiVideoJob({
+          ...job,
+          modal_call_id: callId,
+          modal_result_path: resultPath,
+          progress: 4,
+        }),
+      },
       { status: 202 },
     );
   } catch (error) {
