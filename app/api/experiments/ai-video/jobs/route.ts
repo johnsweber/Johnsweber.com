@@ -102,6 +102,7 @@ export async function POST(request: Request) {
     const sourceModelKey = String(form.get("sourceModelKey") || "");
     const seedValue = Number(form.get("seed") || Math.floor(Math.random() * 2_147_483_647));
     const source = form.get("sourceImage");
+    const referenceMediaId = String(form.get("referenceMediaId") || "");
     const extendMediaId = String(form.get("extendMediaId") || "");
     const requestedSceneId = String(form.get("sceneId") || "");
     const settings = getGenerationSettings(modelKey, qualityKey, durationKey);
@@ -133,6 +134,18 @@ export async function POST(request: Request) {
         return Response.json({ error: "The video to extend is unavailable." }, { status: 404 });
       }
     }
+    let referenceMedia: AiVideoMedia | null = null;
+    if (referenceMediaId && !extendSource) {
+      referenceMedia = await getAiVideoMediaItem(referenceMediaId, user.id);
+      if (
+        !referenceMedia ||
+        referenceMedia.media_type !== "picture" ||
+        referenceMedia.status !== "complete" ||
+        !referenceMedia.content_object_key
+      ) {
+        return Response.json({ error: "The reference picture is unavailable." }, { status: 404 });
+      }
+    }
 
     if (model.supportsImage && useProduction) {
       if (extendSource?.last_frame_object_key) {
@@ -144,6 +157,21 @@ export async function POST(request: Request) {
         await (await getAiVideoMedia()).put(sourceObjectKey, imageBytes, {
           httpMetadata: { contentType: "image/jpeg" },
           customMetadata: { userId: user.id, experiment: "ai-video" },
+        });
+      } else if (referenceMedia?.content_object_key) {
+        const object = await (await getAiVideoMedia()).get(referenceMedia.content_object_key);
+        if (!object) return Response.json({ error: "The reference picture file is unavailable." }, { status: 409 });
+        const contentType = object.httpMetadata?.contentType || "image/jpeg";
+        if (!["image/jpeg", "image/png", "image/webp"].includes(contentType)) {
+          return Response.json({ error: "The saved reference must be a JPG, PNG, or WebP image." }, { status: 400 });
+        }
+        imageBytes = await object.arrayBuffer();
+        const extension = contentType === "image/png" ? "png" : contentType === "image/webp" ? "webp" : "jpg";
+        sourceObjectKey = `experiments/ai-video/users/${user.id}/sources/${id}.${extension}`;
+        sourceFileName = `picture-${referenceMedia.id}.${extension}`;
+        await (await getAiVideoMedia()).put(sourceObjectKey, imageBytes, {
+          httpMetadata: { contentType },
+          customMetadata: { userId: user.id, experiment: "ai-video", referenceMediaId: referenceMedia.id },
         });
       } else if (!(source instanceof File) || !source.size) {
         return Response.json({ error: "Wan 2.2 requires a source image." }, { status: 400 });

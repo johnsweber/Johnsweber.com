@@ -820,11 +820,15 @@ function PicturePending() {
 function CreateView() {
   const searchParams = useSearchParams();
   const extendMediaId = searchParams.get("extend");
+  const animateMediaId = searchParams.get("animate");
   const requestedSceneId = searchParams.get("scene");
+  const startsWithVideo = Boolean(
+    extendMediaId || animateMediaId || searchParams.get("mode") === "video",
+  );
   const authorizedFetch = useAuthorizedFetch();
   const { user } = useUser();
   const { useProduction } = useProductionMode(user?.id);
-  const [creationType, setCreationType] = useState<CreationType>(extendMediaId ? "video" : "picture");
+  const [creationType, setCreationType] = useState<CreationType>(startsWithVideo ? "video" : "picture");
   const [pictureModel, setPictureModel] = useState<PictureModelKey>("base");
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
   const videoModel = AI_VIDEO_MODELS[videoModelKey];
@@ -840,6 +844,7 @@ function CreateView() {
   const [createdMedia, setCreatedMedia] = useState<PublicMedia | null>(null);
   const [createdSceneId, setCreatedSceneId] = useState<string | null>(null);
   const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
+  const [animateMedia, setAnimateMedia] = useState<PublicMedia | null>(null);
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
@@ -854,6 +859,23 @@ function CreateView() {
       })
       .catch(error => setError(error instanceof Error ? error.message : "Unable to extend this video."));
   }, [authorizedFetch, extendMediaId]);
+  useEffect(() => {
+    if (!animateMediaId || extendMediaId) return;
+    authorizedFetch(`/api/experiments/ai-video/media/${animateMediaId}`)
+      .then(async response => {
+        const data = await response.json() as { media?: PublicMedia; error?: string };
+        if (
+          !response.ok ||
+          !data.media ||
+          data.media.mediaType !== "picture" ||
+          data.media.status !== "complete"
+        ) {
+          throw new Error(data.error || "This picture is unavailable for animation.");
+        }
+        setAnimateMedia(data.media);
+      })
+      .catch(error => setError(error instanceof Error ? error.message : "Unable to load this picture."));
+  }, [animateMediaId, authorizedFetch, extendMediaId]);
 
   function chooseCreationType(next: CreationType) {
     setCreationType(next);
@@ -911,6 +933,7 @@ function CreateView() {
         useProduction && videoModel.supportsImage ? "upload" : "none",
       );
       if (source) form.set("sourceImage", source);
+      else if (animateMediaId) form.set("referenceMediaId", animateMediaId);
       if (extendMediaId) form.set("extendMediaId", extendMediaId);
       if (requestedSceneId) form.set("sceneId", requestedSceneId);
       form.set("displayName", user?.fullName || "");
@@ -1065,10 +1088,22 @@ function CreateView() {
           ) : creationType === "video" && videoModel.supportsImage && (
             <div className="aiv-reference-block">
               <span className="aiv-reference-label"><PictureIcon aria-hidden="true" /> Reference image</span>
-              <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
-                {preview ? <img src={preview} alt="Selected reference" /> : <Upload aria-hidden="true" />}
-                <strong>{source ? source.name : "Choose reference image"}</strong>
-                <span>{source ? "Preview ready · click to replace" : "The composition anchors the generated motion."}</span>
+              <label className={`aiv-upload ${preview || animateMedia ? "has-preview" : ""}`}>
+                {preview ? (
+                  <img src={preview} alt="Selected reference" />
+                ) : animateMedia ? (
+                  <PrivateMediaAsset mediaId={animateMedia.id} mediaType="picture" thumbnail>
+                    <Clock3 aria-hidden="true" />
+                  </PrivateMediaAsset>
+                ) : (
+                  <Upload aria-hidden="true" />
+                )}
+                <strong>{source ? source.name : animateMedia ? "Saved picture" : "Choose reference image"}</strong>
+                <span>
+                  {source || animateMedia
+                    ? "Preview ready · click to replace"
+                    : "The composition anchors the generated motion."}
+                </span>
                 <input
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
@@ -1295,6 +1330,13 @@ function MediaView({
                 <span className="aiv-muted-action"><Clock3 aria-hidden="true" /> Last frame is still being prepared</span>
               )}
               {sceneId && <Link className="secondary" href={`/experiments/ai-video/scene/${sceneId}`}><Clapperboard aria-hidden="true" /> Open scene</Link>}
+            </div>
+          )}
+          {media.mediaType === "picture" && (
+            <div className="aiv-actions aiv-player-actions">
+              <Link href={`/experiments/ai-video/create?mode=video&animate=${media.id}`}>
+                <WandSparkles aria-hidden="true" /> Animate picture
+              </Link>
             </div>
           )}
         </section>

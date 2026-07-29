@@ -95,6 +95,8 @@ AI Video experiment (login required):
   the user-owned media row, linked video job, and associated private R2 objects.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state. Completed videos with a saved last frame offer **Extend video**.
+  Completed pictures offer **Animate picture**, which opens Wan with that
+  user-owned picture preloaded and previewed as its reference image.
   Video players read the file's actual metadata duration and persist it back to
   the owned media record, correcting older configuration-derived durations.
   **Scan timeline** lazily samples roughly one frame per three seconds in the

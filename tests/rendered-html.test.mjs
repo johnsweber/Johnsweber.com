@@ -137,6 +137,8 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Wan \+ LTX/);
   assert.match(source, /Choose reference image/);
   assert.match(source, /Choose and preview a reference image/);
+  assert.match(source, /Animate picture/);
+  assert.match(source, /referenceMediaId/);
   assert.doesNotMatch(source, /videoModel\.supportsImage && useProduction && \(/);
   assert.match(source, /onSubmit=\{submit\} noValidate/);
   assert.doesNotMatch(source, /disabled=\{\s*submitting \|\|\s*!prompt/);
@@ -211,6 +213,8 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /modal_call_id: callId/);
   assert.match(source, /num_inference_steps: 20/);
   assert.match(source, /body: JSON\.stringify\(payload\)/);
+  assert.match(source, /referenceMedia\.content_object_key/);
+  assert.match(source, /The reference picture is unavailable/);
 });
 
 test("supports saved last frames, extendable scenes, and CPU exports", async () => {
