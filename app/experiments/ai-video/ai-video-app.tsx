@@ -31,6 +31,8 @@ import {
 } from "react";
 import { useAuthConfigured } from "@/app/auth-provider";
 import { AI_VIDEO_MODELS, type AiVideoModelKey } from "@/lib/ai-video-models";
+import { USE_PRODUCTION_HEADER } from "@/lib/production-mode";
+import { readUseProduction } from "@/lib/use-production-mode";
 
 type View = "home" | "create" | "library" | "player" | "media";
 type CreationType = "picture" | "video";
@@ -113,15 +115,20 @@ function formatRemaining(job: PublicJob) {
 
 function useAuthorizedFetch() {
   const { getToken } = useAuth();
+  const { user } = useUser();
   return useCallback(
     async (input: RequestInfo | URL, init: RequestInit = {}) => {
       const token = await getToken();
       if (!token) throw new Error("Sign in required.");
       const headers = new Headers(init.headers);
       headers.set("Authorization", `Bearer ${token}`);
+      headers.set(
+        USE_PRODUCTION_HEADER,
+        String(readUseProduction(user?.id)),
+      );
       return fetch(input, { ...init, headers });
     },
-    [getToken],
+    [getToken, user?.id],
   );
 }
 

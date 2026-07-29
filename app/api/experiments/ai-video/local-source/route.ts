@@ -8,7 +8,9 @@ import {
   type AiVideoMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
+import { demoAssetFor, demoContentKey } from "@/lib/demo-media";
 import { publicAiVideoMedia } from "@/lib/ai-video-service";
+import { requestUsesProduction } from "@/lib/production-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -19,15 +21,7 @@ export async function POST(request: Request) {
     const user = await requireApiUser(request);
     userId = user.id;
     await ensureAiVideoSchema();
-
-    const gatewayUrl = process.env.LOCAL_IMAGE_GATEWAY_URL?.replace(/\/$/, "");
-    const gatewayToken = process.env.LOCAL_IMAGE_GATEWAY_TOKEN;
-    if (!gatewayUrl || !gatewayToken) {
-      return Response.json(
-        { error: "The local picture generator is not configured." },
-        { status: 503 },
-      );
-    }
+    const useProduction = requestUsesProduction(request);
 
     const input = (await request.json()) as {
       prompt?: string;
@@ -90,6 +84,31 @@ export async function POST(request: Request) {
     };
     await insertAiVideoMedia(media);
     await updateAiVideoMedia(mediaId, user.id, { status: "pending" });
+
+    if (!useProduction) {
+      const asset = demoAssetFor("picture", seed);
+      const objectKey = demoContentKey(asset);
+      const completedAt = new Date().toISOString();
+      await updateAiVideoMedia(mediaId, user.id, {
+        status: "complete",
+        thumbnail_object_key: objectKey,
+        content_object_key: objectKey,
+        content_mime_type: asset.mimeType,
+        completed_at: completedAt,
+        error_message: null,
+      });
+      const complete = await getAiVideoMediaItem(mediaId, user.id);
+      return Response.json(
+        { media: complete ? publicAiVideoMedia(complete) : null },
+        { status: 201 },
+      );
+    }
+
+    const gatewayUrl = process.env.LOCAL_IMAGE_GATEWAY_URL?.replace(/\/$/, "");
+    const gatewayToken = process.env.LOCAL_IMAGE_GATEWAY_TOKEN;
+    if (!gatewayUrl || !gatewayToken) {
+      throw new Error("The local picture generator is not configured.");
+    }
 
     const generated = await fetch(`${gatewayUrl}/generate`, {
       method: "POST",

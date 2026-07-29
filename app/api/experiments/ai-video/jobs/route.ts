@@ -12,11 +12,13 @@ import {
   type AiVideoJob,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
+import { demoAssetFor, demoContentKey } from "@/lib/demo-media";
 import {
   getGenerationSettings,
   getModelConfig,
 } from "@/lib/ai-video-models";
 import { publicAiVideoJob } from "@/lib/ai-video-service";
+import { requestUsesProduction } from "@/lib/production-mode";
 
 export const dynamic = "force-dynamic";
 
@@ -86,6 +88,7 @@ export async function POST(request: Request) {
   try {
     const user = await requireApiUser(request);
     await ensureAiVideoSchema();
+    const useProduction = requestUsesProduction(request);
 
     const form = await request.formData();
     const modelKey = String(form.get("modelKey") || "");
@@ -119,7 +122,7 @@ export async function POST(request: Request) {
     let sourceFileName: string | null = null;
     const id = crypto.randomUUID();
 
-    if (model.supportsImage) {
+    if (model.supportsImage && useProduction) {
       if (!(source instanceof File) || !source.size) {
         return Response.json({ error: "Wan 2.2 requires a source image." }, { status: 400 });
       }
@@ -210,6 +213,43 @@ export async function POST(request: Request) {
       completed_at: null,
     };
     await insertAiVideoJob(job);
+
+    if (!useProduction) {
+      const asset = demoAssetFor("video", seedValue);
+      const contentObjectKey = demoContentKey(asset);
+      const thumbnailObjectKey = demoContentKey(asset, true);
+      const completedAt = new Date().toISOString();
+      await updateAiVideoJob(id, user.id, {
+        status: "complete",
+        progress: 100,
+        output_object_key: contentObjectKey,
+        output_mime_type: asset.mimeType,
+        completed_at: completedAt,
+        error_message: null,
+      });
+      await updateAiVideoMedia(id, user.id, {
+        status: "complete",
+        thumbnail_object_key: thumbnailObjectKey,
+        content_object_key: contentObjectKey,
+        content_mime_type: asset.mimeType,
+        completed_at: completedAt,
+        error_message: null,
+      });
+      return Response.json(
+        {
+          job: publicAiVideoJob({
+            ...job,
+            status: "complete",
+            progress: 100,
+            thumbnail_object_key: thumbnailObjectKey,
+            output_object_key: contentObjectKey,
+            output_mime_type: asset.mimeType,
+            completed_at: completedAt,
+          }),
+        },
+        { status: 201 },
+      );
+    }
 
     const endpoint = process.env[model.endpointEnv]?.replace(/\/$/, "");
     const modalKey = process.env.MODAL_PROXY_TOKEN_ID;

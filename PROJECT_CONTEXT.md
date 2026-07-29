@@ -52,7 +52,14 @@ scope reads/writes by Clerk user ID.
 Public/general:
 
 - `/` — portfolio and playground landing page.
+- `/hero-preview` — unlinked, no-index phone preview for the pointer/touch and
+  device-orientation-responsive Logic Playground hero concept. It is a draft
+  route and is not yet used by the production homepage.
 - Grid icon in the top-left opens the site navigation.
+- The grid navigation includes a Demo/Production pill labeled `Use Production`.
+  It is stored per user in browser `sessionStorage`, defaults to Demo (`false`)
+  in every new browser session, and is sent to generation APIs through the
+  `x-johnsweber-use-production` header.
 - Navigation shows login when signed out and account details/management when
   signed in.
 - `/login` — Clerk sign-in.
@@ -134,6 +141,20 @@ Job lifecycle:
    to R2, and marks the D1 job complete.
 8. Private thumbnail/content routes stream only after verifying ownership.
 
+Generation environment:
+
+- Demo is the safe default. Picture and video submissions still create
+  user-scoped `ai_video_media` records (and `ai_video_jobs` for videos), pass
+  through Submitted/Pending, and complete with one of twelve freely licensed
+  Wikimedia Commons examples. No Modal or local GPU endpoint is called.
+- Production must be explicitly enabled for the current user/browser session.
+  Production video requests use the configured Wan/LTX Modal endpoints;
+  Production pictures continue to use the configured local ComfyUI gateway.
+- Demo media stays behind the authenticated private media routes. Those routes
+  proxy only validated `commons.wikimedia.org` URLs recorded by the server.
+  Source/creator/license details are maintained in
+  `docs/demo-media-sources.md` and `lib/demo-media.ts`.
+
 ## Data boundaries
 
 Schema source: `db/schema.ts`; migrations: `drizzle/`.
@@ -173,6 +194,9 @@ When adding another experiment:
 - `app/api/experiments/ai-video/` — authenticated job and media endpoints.
 - `lib/api-auth.ts` — Clerk API authentication.
 - `lib/ai-video-models.ts` — supported model/quality/duration matrix.
+- `lib/demo-media.ts` — licensed Demo asset catalog and safe media proxy.
+- `lib/production-mode.ts`, `lib/use-production-mode.ts` — request header and
+  browser-session mode state.
 - `lib/ai-video-service.ts` — job projection, progress, result ingestion.
 - `db/schema.ts`, `db/ai-video.ts` — schema and D1 access.
 - `drizzle/` — production SQL migrations.

@@ -4,6 +4,7 @@ import {
   getAiVideoMediaItem,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
+import { proxyDemoMedia } from "@/lib/demo-media";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,10 @@ export async function GET(
 
     const requestedRange =
       media.media_type === "video" ? request.headers.get("range") : null;
+    const demoResponse = await proxyDemoMedia(media.content_object_key, {
+      range: requestedRange,
+    });
+    if (demoResponse) return demoResponse;
     const object = await (await getAiVideoMedia()).get(
       media.content_object_key,
       requestedRange ? { range: request.headers } : undefined,
@@ -58,4 +63,3 @@ export async function GET(
     return new Response(null, { status: 500 });
   }
 }
-

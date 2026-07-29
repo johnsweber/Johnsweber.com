@@ -74,6 +74,18 @@ test("renders the protected AI Video experiment gate", async () => {
   assert.doesNotMatch(html, /source images, generations, and library stay attached/i);
 });
 
+test("renders the unlisted interactive hero preview", async () => {
+  const response = await render("/hero-preview");
+  assert.equal(response.status, 200);
+
+  const html = await response.text();
+  assert.match(html, /Logic Playground Preview/);
+  assert.match(html, /Move it\./);
+  assert.match(html, /See what connects\./);
+  assert.match(html, /Reroute/);
+  assert.match(html, /name="robots" content="noindex, nofollow"/i);
+});
+
 test("separates picture and video creation models", async () => {
   const source = await readFile(
     new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
@@ -86,6 +98,27 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Animagine XL 4\.0/);
   assert.match(source, /Wan \+ LTX/);
   assert.doesNotMatch(source, /sourceMode|Generate source locally/);
+});
+
+test("defaults generation to session-scoped demo mode", async () => {
+  const navigation = await readFile(
+    new URL("../app/site-navigation.tsx", import.meta.url),
+    "utf8",
+  );
+  const productionMode = await readFile(
+    new URL("../lib/production-mode.ts", import.meta.url),
+    "utf8",
+  );
+  const sessionMode = await readFile(
+    new URL("../lib/use-production-mode.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(navigation, /Use Production/);
+  assert.match(navigation, />\s*Demo\s*</);
+  assert.match(navigation, />\s*Production\s*</);
+  assert.match(sessionMode, /sessionStorage/);
+  assert.match(sessionMode, /useState\(false\)/);
+  assert.match(productionMode, /x-johnsweber-use-production/);
 });
 
 test("normalizes structured Modal responses before D1 writes", async () => {

@@ -15,6 +15,7 @@ import { useClerk, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { useAuthConfigured } from "./auth-provider";
+import { useProductionMode } from "@/lib/use-production-mode";
 
 const navItems = [
   { label: "Home", detail: "The starting point", href: "#top", icon: House },
@@ -28,11 +29,13 @@ function MenuShell({
   setOpen,
   accountHeader,
   accountItem,
+  modeControl,
 }: {
   open: boolean;
   setOpen: (open: boolean) => void;
   accountHeader: ReactNode;
   accountItem: ReactNode;
+  modeControl: ReactNode;
 }) {
   useEffect(() => {
     if (!open) return;
@@ -84,6 +87,7 @@ function MenuShell({
               <span>EXPLORE THE SITE</span>
               <h2>Pick a direction.</h2>
             </div>
+            {modeControl}
             <div className="icon-nav-grid">
               {navItems.map(({ label, detail, href, icon: Icon }) => {
                 const content = (
@@ -111,6 +115,40 @@ function MenuShell({
         </div>
       )}
     </>
+  );
+}
+
+function ProductionModeControl({ userId }: { userId?: string | null }) {
+  const { useProduction, setUseProduction } = useProductionMode(userId);
+  return (
+    <div className="production-mode-control">
+      <div>
+        <strong>Use Production</strong>
+        <small>
+          {useProduction
+            ? "Live models are enabled and may incur usage charges."
+            : "Creates return free example media without calling a model."}
+        </small>
+      </div>
+      <div className="production-mode-pill" role="group" aria-label="Generation mode">
+        <button
+          type="button"
+          className={!useProduction ? "selected" : ""}
+          aria-pressed={!useProduction}
+          onClick={() => setUseProduction(false)}
+        >
+          Demo
+        </button>
+        <button
+          type="button"
+          className={useProduction ? "selected" : ""}
+          aria-pressed={useProduction}
+          onClick={() => setUseProduction(true)}
+        >
+          Production
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -171,6 +209,7 @@ function ConfiguredNavigation() {
         setOpen={setOpen}
         accountHeader={accountHeader}
         accountItem={accountItem}
+        modeControl={<ProductionModeControl userId={user?.id} />}
       />
       <div className="nav-links">
         <a href="#work">Work</a>
@@ -214,6 +253,7 @@ function UnconfiguredNavigation() {
             <small>Create or access your account</small>
           </Link>
         }
+        modeControl={<ProductionModeControl />}
       />
       <div className="nav-links">
         <a href="#work">Work</a>
