@@ -197,6 +197,8 @@ test("defaults generation to session-scoped demo mode", async () => {
   assert.match(demoMedia, /demoLicense/);
   assert.match(aiVideo, /Demo mode returns a free example video/);
   assert.match(aiVideo, /useProduction && videoModel\.supportsImage/);
+  assert.match(aiVideo, /readApiResponse/);
+  assert.match(aiVideo, /unreadable response/);
 });
 
 test("normalizes structured Modal responses before D1 writes", async () => {
@@ -214,6 +216,7 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /num_inference_steps: inferenceSteps/);
   assert.match(source, /video_crf: videoCrf/);
   assert.match(source, /frame_rate: fps/);
+  assert.match(source, /browser upload could not be read/);
   assert.match(source, /body: JSON\.stringify\(payload\)/);
   assert.match(source, /referenceMedia\.content_object_key/);
   assert.match(source, /The reference picture is unavailable/);

@@ -92,7 +92,15 @@ export async function POST(request: Request) {
     await ensureAiVideoSchema();
     const useProduction = requestUsesProduction(request);
 
-    const form = await request.formData();
+    let form: FormData;
+    try {
+      form = await request.formData();
+    } catch {
+      return Response.json(
+        { error: "The browser upload could not be read. Re-select the reference image and try again." },
+        { status: 400 },
+      );
+    }
     const modelKey = String(form.get("modelKey") || "");
     const qualityKey = String(form.get("quality") || "");
     const durationKey = String(form.get("duration") || "");

@@ -136,6 +136,25 @@ function formatRemaining(job: PublicJob) {
   return `About ${Math.ceil(remaining / 60)} minutes remaining`;
 }
 
+async function readApiResponse<T extends { error?: string }>(
+  response: Response,
+  fallback: string,
+): Promise<T> {
+  const body = await response.text();
+  if (!body.trim()) {
+    return {
+      error: `${fallback} (HTTP ${response.status}; empty response).`,
+    } as T;
+  }
+  try {
+    return JSON.parse(body) as T;
+  } catch {
+    return {
+      error: `${fallback} (HTTP ${response.status}; unreadable response).`,
+    } as T;
+  }
+}
+
 function useAuthorizedFetch() {
   const { getToken } = useAuth();
   const { user } = useUser();
@@ -1046,7 +1065,11 @@ function CreateView() {
         method: "POST",
         body: form,
       });
-      const data = (await response.json()) as { job?: PublicJob; sceneId?: string | null; error?: string };
+      const data = await readApiResponse<{
+        job?: PublicJob;
+        sceneId?: string | null;
+        error?: string;
+      }>(response, "The generation request was not accepted");
       if (!response.ok || !data.job) {
         throw new Error(data.error || "Video generation could not start.");
       }
