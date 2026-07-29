@@ -212,8 +212,9 @@ Job lifecycle:
    under a D1 lease that prevents overlapping runs. WAN results may
    identify the completed asset with either `download_path` or `output_id`; an
    `output_id` is resolved through the provider's `/video/:output_id` route.
-   Browser polling reads D1 progress but is not responsible for result
-   ingestion, so closing the browser cannot strand completed work.
+   Browser polling remains as an idempotent acceleration/fallback, but is not
+   required for result ingestion, so closing the browser cannot strand
+   completed work once the scheduled trigger is attached.
 7. The Worker saves the completed picture or downloads the completed MP4 to R2.
 8. Generated videos queue a CPU-only Modal/FFmpeg task to decode and privately
    save the actual final frame. The media remains Pending near completion while

@@ -256,7 +256,7 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
     const processingAuth = processingHeaders();
     if (media && processingService && processingAuth && origin) {
       const token = crypto.randomUUID() + crypto.randomUUID();
-      const taskId = crypto.randomUUID();
+      const taskId = `last-frame-${job.id}`;
       const task = {
         id: taskId, user_id: job.user_id, task_type: "last_frame" as const,
         status: "submitted" as const, progress: 5, source_media_id: media.id,
@@ -264,7 +264,10 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
         modal_result_path: null, access_token_hash: await sha256(token),
         error_message: null, created_at: completedAt, updated_at: completedAt, completed_at: null,
       };
-      await insertProcessingTask(task);
+      const inserted = await insertProcessingTask(task);
+      if (!inserted) {
+        return (await getAiVideoJob(job.id, job.user_id)) || job;
+      }
       const response = await fetch(`${processingService}/last-frame`, {
         method: "POST", headers: processingAuth,
         body: JSON.stringify({

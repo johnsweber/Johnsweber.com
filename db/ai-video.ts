@@ -727,13 +727,14 @@ export async function replaceAiVideoSceneItems(
 }
 
 export async function insertProcessingTask(task: AiVideoProcessingTask) {
-  await (await getAiVideoDb()).prepare(`INSERT INTO ai_video_processing_tasks
+  const result = await (await getAiVideoDb()).prepare(`INSERT OR IGNORE INTO ai_video_processing_tasks
     (id,user_id,task_type,status,progress,source_media_id,scene_id,output_media_id,modal_call_id,modal_result_path,access_token_hash,error_message,created_at,updated_at,completed_at)
     VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).bind(
       task.id,task.user_id,task.task_type,task.status,task.progress,task.source_media_id,
       task.scene_id,task.output_media_id,task.modal_call_id,task.modal_result_path,
       task.access_token_hash,task.error_message,task.created_at,task.updated_at,task.completed_at
     ).run();
+  return Number(result.meta.changes || 0) === 1;
 }
 
 export async function getProcessingTask(id: string, userId?: string) {

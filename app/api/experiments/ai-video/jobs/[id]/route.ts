@@ -3,7 +3,10 @@ import {
   getAiVideoJob,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { publicAiVideoJob } from "@/lib/ai-video-service";
+import {
+  publicAiVideoJob,
+  refreshAiVideoJob,
+} from "@/lib/ai-video-service";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +20,8 @@ export async function GET(
     await ensureAiVideoSchema();
     const job = await getAiVideoJob(id, user.id);
     if (!job) return Response.json({ error: "Video not found." }, { status: 404 });
-    return Response.json({ job: publicAiVideoJob(job) });
+    const refreshed = await refreshAiVideoJob(job, new URL(request.url).origin);
+    return Response.json({ job: publicAiVideoJob(refreshed) });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error: "Unable to load this generation." }, { status: 500 });

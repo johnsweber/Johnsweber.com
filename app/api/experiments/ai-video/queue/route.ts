@@ -6,8 +6,8 @@ import {
   listProcessingTasks,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
-import { publicAiVideoJob } from "@/lib/ai-video-service";
-import { publicProcessingTask } from "@/lib/ai-video-processing";
+import { publicAiVideoJob, refreshAiVideoJob } from "@/lib/ai-video-service";
+import { publicProcessingTask, refreshProcessingTask } from "@/lib/ai-video-processing";
 
 export const dynamic = "force-dynamic";
 
@@ -28,9 +28,20 @@ export async function GET(request: Request) {
       listAiVideoMedia(user.id),
       getAiVideoReconcilerState(),
     ]);
+    const origin = new URL(request.url).origin;
+    const refreshedJobs = await Promise.all(jobs.map(job =>
+      (job.status === "queued" || job.status === "running") && !job.output_object_key
+        ? refreshAiVideoJob(job, origin)
+        : job
+    ));
+    const refreshedTasks = await Promise.all(tasks.map(task =>
+      task.status === "submitted" || task.status === "pending"
+        ? refreshProcessingTask(task)
+        : task
+    ));
     const mediaById = new Map(media.map(item => [item.id, item]));
 
-    const jobItems = jobs.map(job => {
+    const jobItems = refreshedJobs.map(job => {
       const projected = publicAiVideoJob(job);
       const ownedMedia = mediaById.get(job.id);
       const status: QueueStatus = job.output_object_key
@@ -66,7 +77,7 @@ export async function GET(request: Request) {
       };
     });
 
-    const taskItems = tasks.map(task => {
+    const taskItems = refreshedTasks.map(task => {
       const projected = publicProcessingTask(task);
       const output = task.output_media_id ? mediaById.get(task.output_media_id) : null;
       const status: QueueStatus =
