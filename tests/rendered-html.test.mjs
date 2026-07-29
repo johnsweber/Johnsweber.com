@@ -286,7 +286,7 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /toDataURL\("image\/jpeg"/);
   assert.match(app, /Math\.ceil\(measuredDuration \/ 3\)/);
   assert.match(app, /canvas\.toBlob/);
-  assert.match(app, /Capturing the last frame in your browser/);
+  assert.match(app, /Preparing the last frame on the server/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
@@ -303,7 +303,11 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(modal, /Range/);
   assert.match(modal, /range\(4\)/);
   assert.match(processingSource, /Content-Range/);
-  assert.match(browserFrameRoute, /source: "browser-capture"/);
-  assert.match(browserFrameRoute, /last_frame_object_key: key/);
+  assert.match(browserFrameRoute, /processingEndpoint/);
+  assert.match(browserFrameRoute, /task_type: "last_frame"/);
+  assert.match(browserFrameRoute, /\/last-frame/);
+  assert.doesNotMatch(browserFrameRoute, /request\.formData/);
+  assert.match(modal, /volume\.reload\(\)/);
+  assert.match(modal, /"-update", "1"/);
   assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
 });

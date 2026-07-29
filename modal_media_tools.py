@@ -66,8 +66,10 @@ def _download(url: str, path: pathlib.Path, token: str):
 
 def _frame(source: pathlib.Path, output: pathlib.Path):
     subprocess.run([
-        "ffmpeg", "-y", "-sseof", "-0.12", "-i", str(source),
-        "-frames:v", "1", "-q:v", "2", str(output),
+        "ffmpeg", "-y", "-loglevel", "error",
+        "-sseof", "-1", "-i", str(source),
+        "-an", "-fps_mode", "vfr", "-update", "1",
+        "-q:v", "2", str(output),
     ], check=True, capture_output=True)
 
 
@@ -178,6 +180,9 @@ def api():
 
     @web.get("/output/{item}")
     async def output(item: str):
+        if pathlib.Path(item).name != item:
+            raise HTTPException(400, "Invalid media item.")
+        volume.reload()
         path = ROOT / item / "output.mp4"
         if not path.exists():
             raise HTTPException(404)
@@ -185,6 +190,9 @@ def api():
 
     @web.get("/frame/{item}")
     async def frame(item: str):
+        if pathlib.Path(item).name != item:
+            raise HTTPException(400, "Invalid media item.")
+        volume.reload()
         path = ROOT / item / "last-frame.jpg"
         if not path.exists():
             raise HTTPException(404)

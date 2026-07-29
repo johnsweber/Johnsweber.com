@@ -4,6 +4,7 @@ import {
   getAiVideoJob,
   getAiVideoMedia,
   getAiVideoMediaItem,
+  getPendingTaskForMedia,
   getSceneForMedia,
   updateAiVideoMedia,
 } from "@/db/ai-video";
@@ -13,6 +14,7 @@ import {
   publicAiVideoMedia,
   refreshAiVideoMediaItem,
 } from "@/lib/ai-video-service";
+import { publicProcessingTask } from "@/lib/ai-video-processing";
 
 export const dynamic = "force-dynamic";
 
@@ -33,10 +35,14 @@ export async function GET(
     const job = refreshed.job_id
       ? await getAiVideoJob(refreshed.job_id, user.id)
       : null;
+    const lastFrameTask = refreshed.media_type === "video"
+      ? await getPendingTaskForMedia(refreshed.id, "last_frame")
+      : null;
     return Response.json({
       media: publicAiVideoMedia(refreshed),
       sceneId: scene?.id || null,
       job: job ? publicAiVideoJob(job) : null,
+      lastFrameTask: lastFrameTask ? publicProcessingTask(lastFrameTask) : null,
     });
   } catch (error) {
     if (error instanceof Response) return error;

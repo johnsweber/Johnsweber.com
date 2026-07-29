@@ -1,12 +1,20 @@
 import {
   ensureAiVideoSchema,
   getAiVideoJob,
-  getAiVideoMedia,
   getAiVideoMediaItem,
+  getPendingTaskForMedia,
+  insertProcessingTask,
   updateAiVideoJob,
   updateAiVideoMedia,
+  updateProcessingTask,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
+import {
+  processingEndpoint,
+  processingHeaders,
+  publicProcessingTask,
+  sha256,
+} from "@/lib/ai-video-processing";
 import { publicAiVideoMedia } from "@/lib/ai-video-service";
 
 export const dynamic = "force-dynamic";
@@ -23,55 +31,113 @@ export async function POST(
     if (
       !media ||
       media.media_type !== "video" ||
-      media.status !== "complete" ||
+      media.status === "failed" ||
       !media.content_object_key
     ) {
-      return Response.json({ error: "Completed video not found." }, { status: 404 });
+      return Response.json({ error: "Saved video not found." }, { status: 404 });
     }
 
-    const form = await request.formData();
-    const frame = form.get("frame");
-    if (!(frame instanceof File) || !frame.size) {
-      return Response.json({ error: "Add a captured JPEG frame." }, { status: 400 });
-    }
-    if (frame.type !== "image/jpeg" || frame.size > 5 * 1024 * 1024) {
-      return Response.json({ error: "The captured frame must be a JPEG under 5 MB." }, { status: 400 });
+    const existing = await getPendingTaskForMedia(media.id, "last_frame");
+    if (existing && (existing.status === "submitted" || existing.status === "pending")) {
+      return Response.json({
+        media: publicAiVideoMedia(media),
+        task: publicProcessingTask(existing),
+      }, { status: 202 });
     }
 
-    const key = `experiments/ai-video/users/${user.id}/last-frames/${media.id}.jpg`;
-    await (await getAiVideoMedia()).put(key, frame.stream(), {
-      httpMetadata: { contentType: "image/jpeg" },
-      customMetadata: {
-        userId: user.id,
-        mediaId: media.id,
-        source: "browser-capture",
-      },
-    });
-    const completedAt = media.completed_at || new Date().toISOString();
-    await updateAiVideoMedia(media.id, user.id, {
-      thumbnail_object_key: key,
-      last_frame_object_key: key,
+    const endpoint = processingEndpoint();
+    const headers = processingHeaders();
+    if (!endpoint || !headers) {
+      return Response.json({ error: "The CPU media service is not configured." }, { status: 503 });
+    }
+
+    const now = new Date().toISOString();
+    const taskId = crypto.randomUUID();
+    const token = crypto.randomUUID() + crypto.randomUUID();
+    const task = {
+      id: taskId,
+      user_id: user.id,
+      task_type: "last_frame" as const,
+      status: "submitted" as const,
+      progress: 5,
+      source_media_id: media.id,
+      scene_id: null,
+      output_media_id: media.id,
+      modal_call_id: null,
+      modal_result_path: null,
+      access_token_hash: await sha256(token),
       error_message: null,
-      completed_at: completedAt,
+      created_at: now,
+      updated_at: now,
+      completed_at: null,
+    };
+    await insertProcessingTask(task);
+
+    const origin = new URL(request.url).origin;
+    const response = await fetch(`${endpoint}/last-frame`, {
+      method: "POST",
+      headers,
+      body: JSON.stringify({
+        source_url: `${origin}/api/experiments/ai-video/processing/${taskId}/source/${media.id}`,
+        access_token: token,
+      }),
+      signal: AbortSignal.timeout(15_000),
+    });
+    const data = await response.json().catch(() => ({})) as {
+      call_id?: string;
+      result_path?: string;
+      detail?: string;
+    };
+    if (!response.ok || !data.call_id || !data.result_path) {
+      const message = data.detail || "Server-side last-frame extraction could not start.";
+      await updateProcessingTask(taskId, {
+        status: "failed",
+        error_message: message,
+        access_token_hash: null,
+      });
+      return Response.json({ error: message }, { status: 502 });
+    }
+
+    await updateProcessingTask(taskId, {
+      status: "pending",
+      progress: 10,
+      modal_call_id: data.call_id,
+      modal_result_path: data.result_path,
+    });
+    await updateAiVideoMedia(media.id, user.id, {
+      status: "pending",
+      last_frame_object_key: null,
+      error_message: null,
+      completed_at: null,
     });
     if (media.job_id) {
       const job = await getAiVideoJob(media.job_id, user.id);
       if (job) {
         await updateAiVideoJob(job.id, user.id, {
-          last_frame_object_key: key,
-          status: "complete",
-          progress: 100,
+          status: "running",
+          progress: 96,
+          last_frame_object_key: null,
           error_message: null,
-          completed_at: job.completed_at || completedAt,
+          completed_at: null,
         });
       }
     }
+
     const updated = await getAiVideoMediaItem(media.id, user.id);
     return Response.json({
       media: updated ? publicAiVideoMedia(updated) : null,
-    });
+      task: publicProcessingTask({
+        ...task,
+        status: "pending",
+        progress: 10,
+        modal_call_id: data.call_id,
+        modal_result_path: data.result_path,
+      }),
+    }, { status: 202 });
   } catch (error) {
     if (error instanceof Response) return error;
-    return Response.json({ error: "Unable to save the captured last frame." }, { status: 500 });
+    return Response.json({
+      error: error instanceof Error ? error.message : "Unable to prepare the last frame.",
+    }, { status: 500 });
   }
 }

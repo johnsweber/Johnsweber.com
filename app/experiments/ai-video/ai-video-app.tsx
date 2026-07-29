@@ -361,19 +361,14 @@ type TimelineFrame = { time: number; source: string };
 function ScannableVideo({
   mediaId,
   onDuration,
-  recoverLastFrame = false,
-  onLastFrameStatus,
 }: {
   mediaId: string;
   onDuration: (seconds: number) => void;
-  recoverLastFrame?: boolean;
-  onLastFrameStatus?: (status: "running" | "saved" | "failed") => void;
 }) {
   const authorizedFetch = useAuthorizedFetch();
   const videoRef = useRef<HTMLVideoElement>(null);
   const timelineRef = useRef<HTMLDivElement>(null);
   const generationRef = useRef(0);
-  const lastFrameAttempted = useRef(false);
   const [url, setUrl] = useState("");
   const [duration, setDuration] = useState(0);
   const [scanOpen, setScanOpen] = useState(false);
@@ -406,64 +401,6 @@ function ScannableVideo({
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
   }, [authorizedFetch, mediaId]);
-
-  useEffect(() => {
-    if (!url || !recoverLastFrame || lastFrameAttempted.current) return;
-    lastFrameAttempted.current = true;
-    let active = true;
-    const capture = async () => {
-      onLastFrameStatus?.("running");
-      try {
-        const sampler = document.createElement("video");
-        sampler.src = url;
-        sampler.muted = true;
-        sampler.preload = "auto";
-        sampler.playsInline = true;
-        if (sampler.readyState < 1) {
-          await new Promise<void>((resolve, reject) => {
-            sampler.addEventListener("loadedmetadata", () => resolve(), { once: true });
-            sampler.addEventListener("error", () => reject(new Error("Video metadata unavailable.")), { once: true });
-          });
-        }
-        if (sampler.readyState < 2) {
-          await new Promise<void>((resolve, reject) => {
-            sampler.addEventListener("loadeddata", () => resolve(), { once: true });
-            sampler.addEventListener("error", () => reject(new Error("Video frame unavailable.")), { once: true });
-          });
-        }
-        await new Promise<void>((resolve, reject) => {
-          sampler.addEventListener("seeked", () => resolve(), { once: true });
-          sampler.addEventListener("error", () => reject(new Error("Could not seek to the last frame.")), { once: true });
-          sampler.currentTime = Math.max(0, sampler.duration - 0.04);
-        });
-        const canvas = document.createElement("canvas");
-        canvas.width = sampler.videoWidth;
-        canvas.height = sampler.videoHeight;
-        const context = canvas.getContext("2d");
-        if (!context || !canvas.width || !canvas.height) throw new Error("Browser frame capture unavailable.");
-        context.drawImage(sampler, 0, 0);
-        const blob = await new Promise<Blob>((resolve, reject) => {
-          canvas.toBlob(
-            value => value ? resolve(value) : reject(new Error("Could not encode the last frame.")),
-            "image/jpeg",
-            0.9,
-          );
-        });
-        const form = new FormData();
-        form.set("frame", blob, `${mediaId}-last-frame.jpg`);
-        const response = await authorizedFetch(`/api/experiments/ai-video/media/${mediaId}/last-frame`, {
-          method: "POST",
-          body: form,
-        });
-        if (!response.ok) throw new Error("Could not save the browser-captured frame.");
-        if (active) onLastFrameStatus?.("saved");
-      } catch {
-        if (active) onLastFrameStatus?.("failed");
-      }
-    };
-    void capture();
-    return () => { active = false; };
-  }, [authorizedFetch, mediaId, onLastFrameStatus, recoverLastFrame, url]);
 
   async function generateFrames() {
     if (!url || frames.length || scanning) return;
@@ -1622,8 +1559,9 @@ function MediaView({
   const [sceneId, setSceneId] = useState<string | null>(null);
   const [job, setJob] = useState<PublicJob | null>(null);
   const [actualDuration, setActualDuration] = useState<number | null>(null);
-  const [lastFrameStatus, setLastFrameStatus] = useState<"idle" | "running" | "saved" | "failed">("idle");
+  const [lastFrameTask, setLastFrameTask] = useState<PublicTask | null>(null);
   const savedDuration = useRef<number | null>(null);
+  const lastFrameRetryStarted = useRef(false);
 
   const captureDuration = useCallback((duration: number) => {
     setActualDuration(duration);
@@ -1636,15 +1574,7 @@ function MediaView({
     });
   }, [authorizedFetch, mediaId]);
 
-  const handleLastFrameStatus = useCallback((status: "running" | "saved" | "failed") => {
-    setLastFrameStatus(status);
-    if (status === "saved") {
-      setMedia(current => current ? { ...current, hasLastFrame: true, hasThumbnail: true } : current);
-    }
-  }, []);
-
   useEffect(() => {
-    if (media?.status === "complete" || media?.status === "failed") return;
     let active = true;
     let timer = 0;
     const load = async () => {
@@ -1654,6 +1584,7 @@ function MediaView({
           media?: PublicMedia;
           sceneId?: string | null;
           job?: PublicJob | null;
+          lastFrameTask?: PublicTask | null;
           error?: string;
         };
         if (!response.ok || !data.media) throw new Error(data.error || "Media unavailable.");
@@ -1661,14 +1592,51 @@ function MediaView({
         setMedia(data.media);
         setSceneId(data.sceneId || null);
         setJob(data.job || null);
-        if (isPending(data.media.status)) timer = window.setTimeout(load, 3_000);
+        setLastFrameTask(data.lastFrameTask || null);
+
+        const needsServerFrame =
+          data.media.mediaType === "video" &&
+          data.media.hasContent &&
+          data.media.status !== "failed" &&
+          (
+            (!data.media.hasLastFrame && !data.lastFrameTask) ||
+            data.lastFrameTask?.status === "failed"
+          );
+        if (needsServerFrame && !lastFrameRetryStarted.current) {
+          lastFrameRetryStarted.current = true;
+          const retry = await authorizedFetch(
+            `/api/experiments/ai-video/media/${mediaId}/last-frame`,
+            { method: "POST" },
+          );
+          const retryData = await readApiResponse<{
+            media?: PublicMedia;
+            task?: PublicTask;
+            error?: string;
+          }>(retry, "Last-frame extraction could not start");
+          if (!retry.ok || !retryData.task) {
+            throw new Error(retryData.error || "Last-frame extraction could not start.");
+          }
+          if (!active) return;
+          if (retryData.media) setMedia(retryData.media);
+          setLastFrameTask(retryData.task);
+          timer = window.setTimeout(load, 3_000);
+          return;
+        }
+
+        if (
+          isPending(data.media.status) ||
+          data.lastFrameTask?.status === "submitted" ||
+          data.lastFrameTask?.status === "pending"
+        ) {
+          timer = window.setTimeout(load, 3_000);
+        }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "Media unavailable.");
       }
     };
     void load();
     return () => { active = false; window.clearTimeout(timer); };
-  }, [authorizedFetch, media?.status, mediaId]);
+  }, [authorizedFetch, mediaId]);
 
   return (
     <main className="aiv-player-page">
@@ -1735,8 +1703,6 @@ function MediaView({
               <ScannableVideo
                 mediaId={media.id}
                 onDuration={captureDuration}
-                recoverLastFrame={!media.hasLastFrame}
-                onLastFrameStatus={handleLastFrameStatus}
               />
             ) : (
               <PrivateMediaAsset mediaId={media.id} mediaType="picture" className="aiv-picture">
@@ -1754,18 +1720,16 @@ function MediaView({
           </div>
           {media.mediaType === "video" && (
             <div className="aiv-actions aiv-player-actions">
-              {media.hasLastFrame || lastFrameStatus === "saved" ? (
+              {media.hasLastFrame && lastFrameTask?.status !== "failed" ? (
                 <Link href={`/experiments/ai-video/create?mode=video&extend=${media.id}${sceneId ? `&scene=${sceneId}` : ""}`}>
                   <Plus aria-hidden="true" /> Extend video
                 </Link>
               ) : (
                 <span className="aiv-muted-action">
                   <Clock3 aria-hidden="true" />
-                  {lastFrameStatus === "failed"
-                    ? "Browser could not capture the last frame"
-                    : lastFrameStatus === "running"
-                      ? "Capturing the last frame in your browser"
-                      : "Last frame is still being prepared"}
+                  {lastFrameTask?.status === "failed"
+                    ? "Retrying the last frame on the server"
+                    : "Preparing the last frame on the server"}
                 </span>
               )}
               {sceneId && <Link className="secondary" href={`/experiments/ai-video/scene/${sceneId}`}><Clapperboard aria-hidden="true" /> Open scene</Link>}

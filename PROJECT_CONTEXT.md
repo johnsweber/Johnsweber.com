@@ -126,6 +126,7 @@ AI Video APIs:
 - `DELETE /api/experiments/ai-video/media/:id`
 - `GET /api/experiments/ai-video/media/:id/content`
 - `GET /api/experiments/ai-video/media/:id/thumbnail`
+- `POST /api/experiments/ai-video/media/:id/last-frame`
 - `GET /api/experiments/ai-video/scenes/:id`
 - `POST /api/experiments/ai-video/scenes/:id/export`
 - `GET /api/experiments/ai-video/processing/:taskId/source/:mediaId`
@@ -189,12 +190,12 @@ Job lifecycle:
 5. The Worker submits `/generate` to the selected GPU provider.
 6. The UI polls the media/job route while work is pending.
 7. The Worker saves the completed picture or downloads the completed MP4 to R2.
-8. Future generated videos queue a CPU-only Modal/FFmpeg task to extract and
-   privately save the final frame. The media remains Pending near completion
-   while this finishes. If that CPU task does not produce a frame, opening the
-   completed video triggers an authenticated browser fallback: a separate
-   video element seeks to the final frame, canvas encodes it as JPEG, and
-   `POST /api/experiments/ai-video/media/:id/last-frame` saves it to private R2.
+8. Generated videos queue a CPU-only Modal/FFmpeg task to decode and privately
+   save the actual final frame. The media remains Pending near completion while
+   this finishes. There is no browser/canvas fallback. Opening a video whose
+   prior extraction failed automatically uses the authenticated
+   `POST /api/experiments/ai-video/media/:id/last-frame` route to requeue that
+   same server-side task; Extend remains unavailable until it succeeds.
 9. Extend preloads that saved frame into Wan and attaches the original and new
    clip to a user-owned scene in creation order.
 10. Scene Export always supplies authenticated private clip URLs to the CPU
