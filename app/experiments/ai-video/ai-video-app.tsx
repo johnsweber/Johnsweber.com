@@ -11,10 +11,12 @@ import {
   Images,
   Library,
   LockKeyhole,
+  EllipsisVertical,
   PanelsTopLeft,
   Play,
   Plus,
   Settings2,
+  Trash2,
   Upload,
   Video,
   WandSparkles,
@@ -25,6 +27,7 @@ import {
   useCallback,
   useEffect,
   useMemo,
+  useRef,
   useState,
   type FormEvent,
   type ReactNode,
@@ -263,10 +266,40 @@ function PendingBadge({ status }: { status: MediaStatus }) {
   );
 }
 
-function MediaCard({ media }: { media: PublicMedia }) {
+function MediaCard({
+  media,
+  onDelete,
+}: {
+  media: PublicMedia;
+  onDelete?: (id: string) => Promise<void>;
+}) {
+  const menuRef = useRef<HTMLDetailsElement>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
+
+  async function handleDelete() {
+    if (!onDelete || !window.confirm("Delete this media item and its saved file?")) {
+      return;
+    }
+    setDeleting(true);
+    setDeleteError("");
+    try {
+      await onDelete(media.id);
+      if (menuRef.current) menuRef.current.open = false;
+    } catch (error) {
+      setDeleteError(error instanceof Error ? error.message : "Unable to delete media.");
+      setDeleting(false);
+    }
+  }
+
   return (
-    <Link href={`/experiments/ai-video/media/${media.id}`} className="aiv-library-card">
-      <div className="aiv-thumb">
+    <article className="aiv-library-card">
+      <Link
+        href={`/experiments/ai-video/media/${media.id}`}
+        className="aiv-library-visual"
+        aria-label={`Open ${media.mediaType}: ${media.prompt}`}
+      >
+        <div className="aiv-thumb">
         {media.hasThumbnail ? (
           <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType} thumbnail>
             <span className="aiv-thumb-placeholder"><Images aria-hidden="true" /></span>
@@ -284,15 +317,34 @@ function MediaCard({ media }: { media: PublicMedia }) {
           {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
           {media.mediaType}
         </span>
-      </div>
+        </div>
+      </Link>
       <div className="aiv-library-copy">
-        <strong>{media.prompt}</strong>
+        <div className="aiv-library-copy-row">
+          <Link href={`/experiments/ai-video/media/${media.id}`} className="aiv-library-title">
+            <strong>{media.prompt}</strong>
+          </Link>
+          {onDelete && (
+            <details className="aiv-card-menu" ref={menuRef}>
+              <summary aria-label={`Actions for ${media.prompt}`}>
+                <EllipsisVertical aria-hidden="true" />
+              </summary>
+              <div className="aiv-card-menu-panel">
+                <button type="button" onClick={handleDelete} disabled={deleting}>
+                  <Trash2 aria-hidden="true" />
+                  {deleting ? "Deleting…" : "Delete"}
+                </button>
+                {deleteError && <span role="alert">{deleteError}</span>}
+              </div>
+            </details>
+          )}
+        </div>
         <span>
           {modelName(media)} · {media.mediaType === "video" ? `${media.durationSeconds}s · ` : ""}
           {media.quality}
         </span>
       </div>
-    </Link>
+    </article>
   );
 }
 
@@ -332,7 +384,20 @@ function useMedia(enabled: boolean) {
       window.clearTimeout(timer);
     };
   }, [authorizedFetch, enabled]);
-  return { media, loading, error };
+
+  const deleteMedia = useCallback(async (id: string) => {
+    const response = await authorizedFetch(
+      `/api/experiments/ai-video/media/${id}`,
+      { method: "DELETE" },
+    );
+    if (!response.ok) {
+      const data = (await response.json().catch(() => ({}))) as { error?: string };
+      throw new Error(data.error || "Unable to delete media.");
+    }
+    setMedia((items) => items.filter((item) => item.id !== id));
+  }, [authorizedFetch]);
+
+  return { media, loading, error, deleteMedia };
 }
 
 function HomeView() {
@@ -755,7 +820,7 @@ function CreateView() {
 }
 
 function LibraryView() {
-  const { media, loading, error } = useMedia(true);
+  const { media, loading, error, deleteMedia } = useMedia(true);
   const [filter, setFilter] = useState<"all" | CreationType>("all");
   const filtered = filter === "all" ? media : media.filter((item) => item.mediaType === filter);
   return (
@@ -787,7 +852,9 @@ function LibraryView() {
           <div className="aiv-empty"><strong>Library unavailable</strong><span>{error}</span></div>
         ) : filtered.length ? (
           <div className="aiv-library-grid">
-            {filtered.map((item) => <MediaCard media={item} key={item.id} />)}
+            {filtered.map((item) => (
+              <MediaCard media={item} key={item.id} onDelete={deleteMedia} />
+            ))}
           </div>
         ) : (
           <div className="aiv-empty">

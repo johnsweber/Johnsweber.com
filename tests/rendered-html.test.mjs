@@ -115,6 +115,25 @@ test("separates picture and video creation models", async () => {
   assert.doesNotMatch(source, /sourceMode|Generate source locally/);
 });
 
+test("deletes only user-owned media records and stored objects", async () => {
+  const route = await readFile(
+    new URL("../app/api/experiments/ai-video/media/[id]/route.ts", import.meta.url),
+    "utf8",
+  );
+  const database = await readFile(new URL("../db/ai-video.ts", import.meta.url), "utf8");
+  const app = await readFile(
+    new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(route, /export async function DELETE/);
+  assert.match(route, /getAiVideoMediaItem\(id, user\.id\)/);
+  assert.match(route, /\.delete\(objectKeys\)/);
+  assert.match(database, /DELETE FROM ai_video_media WHERE id = \? AND user_id = \?/);
+  assert.match(database, /DELETE FROM ai_video_jobs WHERE id = \? AND user_id = \?/);
+  assert.match(app, /EllipsisVertical/);
+  assert.match(app, /Delete this media item and its saved file/);
+});
+
 test("defaults generation to session-scoped demo mode", async () => {
   const navigation = await readFile(
     new URL("../app/site-navigation.tsx", import.meta.url),

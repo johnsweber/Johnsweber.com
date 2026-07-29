@@ -77,7 +77,8 @@ AI Video experiment (login required):
 - `/experiments/ai-video/create` — Picture/Video pill selector, generation
   forms, and submitted/pending result states.
 - `/experiments/ai-video/library` — unified private picture/video library with
-  All, Picture, and Video filters.
+  All, Picture, and Video filters. Each card has an actions menu; Delete removes
+  the user-owned media row, linked video job, and associated private R2 objects.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state.
 - `/experiments/ai-video/video/:id` — private video player.
@@ -92,6 +93,7 @@ AI Video APIs:
 - `POST /api/experiments/ai-video/local-source`
 - `GET /api/experiments/ai-video/media`
 - `GET /api/experiments/ai-video/media/:id`
+- `DELETE /api/experiments/ai-video/media/:id`
 - `GET /api/experiments/ai-video/media/:id/content`
 - `GET /api/experiments/ai-video/media/:id/thumbnail`
 

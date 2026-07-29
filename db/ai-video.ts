@@ -426,6 +426,27 @@ export async function getAiVideoMediaByJob(jobId: string, userId: string) {
     .first<AiVideoMedia>();
 }
 
+export async function deleteAiVideoMediaItem(
+  id: string,
+  userId: string,
+  jobId: string | null,
+) {
+  const db = await getAiVideoDb();
+  const statements = [
+    db
+      .prepare("DELETE FROM ai_video_media WHERE id = ? AND user_id = ?")
+      .bind(id, userId),
+  ];
+  if (jobId) {
+    statements.push(
+      db
+        .prepare("DELETE FROM ai_video_jobs WHERE id = ? AND user_id = ?")
+        .bind(jobId, userId),
+    );
+  }
+  await db.batch(statements);
+}
+
 export async function updateAiVideoMedia(
   id: string,
   userId: string,
