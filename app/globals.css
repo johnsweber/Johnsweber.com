@@ -1132,6 +1132,7 @@ body.menu-open { overflow: hidden; }
     radial-gradient(circle at 89% 8%,rgba(143,221,235,.32),transparent 25rem),
     var(--paper);
   box-shadow: 0 40px 100px rgba(16,35,74,.28);
+  color: var(--ink);
 }
 .grid-menu-top {
   min-height: 72px;
@@ -1149,6 +1150,7 @@ body.menu-open { overflow: hidden; }
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--white);
+  color: var(--ink);
   cursor: pointer;
 }
 .menu-guest,
