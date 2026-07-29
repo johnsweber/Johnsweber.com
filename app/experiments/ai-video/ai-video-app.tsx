@@ -1094,6 +1094,14 @@ function CreateView() {
   const [editStrength, setEditStrength] = useState(0.6);
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
   const videoModel = AI_VIDEO_MODELS[videoModelKey];
+  const durationOptions = useMemo(
+    () => Object.values(videoModel.durations) as Array<{
+      seconds: number;
+      frames: number;
+      fps: number;
+    }>,
+    [videoModel],
+  );
   const [quality, setQuality] = useState(extendMediaId ? "480p" : "480p");
   const [outputWidth, setOutputWidth] = useState(256);
   const [outputHeight, setOutputHeight] = useState(256);
@@ -1118,6 +1126,24 @@ function CreateView() {
   const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
   const [animateMedia, setAnimateMedia] = useState<PublicMedia | null>(null);
   const [editMedia, setEditMedia] = useState<PublicMedia | null>(null);
+  const selectedDurationIndex = useMemo(() => {
+    const exact = durationOptions.findIndex(
+      option => option.frames === numFrames && option.fps === frameRate,
+    );
+    if (exact >= 0) return exact;
+    const actual = numFrames / Math.max(1, frameRate);
+    return durationOptions.reduce(
+      (closest, option, index) =>
+        Math.abs(option.seconds - actual) <
+        Math.abs(durationOptions[closest].seconds - actual)
+          ? index
+          : closest,
+      0,
+    );
+  }, [durationOptions, frameRate, numFrames]);
+  const selectedDuration = durationOptions[selectedDurationIndex];
+  const hasCustomDuration =
+    selectedDuration.frames !== numFrames || selectedDuration.fps !== frameRate;
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
   const renderEstimateSeconds = useMemo(() => {
     const baseEstimate = videoModelKey === "wan22"
@@ -1269,17 +1295,26 @@ function CreateView() {
   }
 
   function chooseVideoModel(next: AiVideoModelKey) {
+    const firstDuration = Object.values(AI_VIDEO_MODELS[next].durations)[0];
     setVideoModelKey(next);
     setGenerationPreset("test");
     setQuality(next === "wan22" ? "480p" : next === "nava" ? "landscape" : "standard");
     setOutputWidth(next === "nava" ? 1280 : 256);
     setOutputHeight(next === "nava" ? 704 : 256);
-    setNumFrames(next === "nava" ? 37 : 9);
-    setFrameRate(next === "nava" ? 24 : 1);
+    setNumFrames(firstDuration.frames);
+    setFrameRate(firstDuration.fps);
     setInferenceSteps(next === "nava" ? 50 : 1);
     setGuidanceScale(0);
     setVideoCrf(28);
     setVoiceReference(null);
+  }
+
+  function chooseDuration(index: number) {
+    const option = durationOptions[index];
+    if (!option) return;
+    setGenerationPreset("custom");
+    setNumFrames(option.frames);
+    setFrameRate(option.fps);
   }
 
   function applyGenerationPreset(preset: Exclude<GenerationPreset, "custom">) {
@@ -1288,8 +1323,8 @@ function CreateView() {
     if (videoModelKey === "wan22") {
       if (preset === "test") {
         setQuality("480p");
-        setNumFrames(9);
-        setFrameRate(1);
+        setNumFrames(81);
+        setFrameRate(16);
         setInferenceSteps(1);
         setGuidanceScale(0);
         setVideoCrf(28);
@@ -1322,8 +1357,8 @@ function CreateView() {
     if (preset === "test") {
       setOutputWidth(256);
       setOutputHeight(256);
-      setNumFrames(9);
-      setFrameRate(1);
+      setNumFrames(121);
+      setFrameRate(24);
     } else if (preset === "fast") {
       setOutputWidth(768);
       setOutputHeight(512);
@@ -1386,7 +1421,7 @@ function CreateView() {
       form.set("quality", quality);
       form.set(
         "duration",
-        videoModelKey === "nava" ? (numFrames === 61 ? "10" : "6") : "5",
+        String(selectedDuration.seconds),
       );
       form.set("outputWidth", String(outputWidth));
       form.set("outputHeight", String(outputHeight));
@@ -1497,7 +1532,11 @@ function CreateView() {
             <span>1</span>
             <div><strong>Choose a model</strong><small>Only models available for {creationType} creation are shown.</small></div>
           </div>
-          <div className="aiv-choice-grid">
+          <div
+            className={creationType === "video" ? "aiv-model-picker" : "aiv-choice-grid"}
+            role={creationType === "video" ? "radiogroup" : undefined}
+            aria-label={creationType === "video" ? "Video model" : undefined}
+          >
             {creationType === "picture"
               ? (Object.keys(AI_PICTURE_MODELS) as PictureModelKey[]).map((key) => {
                   const option = AI_PICTURE_MODELS[key];
@@ -1524,12 +1563,29 @@ function CreateView() {
                 })
               : (Object.keys(AI_VIDEO_MODELS) as AiVideoModelKey[]).map((key) => {
                   const option = AI_VIDEO_MODELS[key];
+                  const durations = Object.values(option.durations);
                   return (
-                    <button type="button" key={key} className={videoModelKey === key ? "selected" : ""} onClick={() => chooseVideoModel(key)}>
-                      <span>{option.requiresImage ? "IMAGE-GUIDED" : "TEXT / IMAGE + AUDIO"}</span>
-                      <strong>{option.name}</strong>
-                      <small>{option.description}</small>
-                      {videoModelKey === key && <Check aria-hidden="true" />}
+                    <button
+                      type="button"
+                      role="radio"
+                      aria-checked={videoModelKey === key}
+                      key={key}
+                      className={videoModelKey === key ? "selected" : ""}
+                      onClick={() => chooseVideoModel(key)}
+                    >
+                      <span className="aiv-model-picker-mark">
+                        <Video aria-hidden="true" />
+                        {videoModelKey === key && <Check aria-hidden="true" />}
+                      </span>
+                      <span className="aiv-model-picker-copy">
+                        <strong>{option.name}</strong>
+                        <small>{option.description}</small>
+                        <span className="aiv-model-picker-meta">
+                          <b>{option.requiresImage ? "Image required" : "Image optional"}</b>
+                          <b>{option.supportsAudio ? "Audio" : "Silent"}</b>
+                          <b>{durations.map(duration => `${duration.seconds}s`).join(" / ")}</b>
+                        </span>
+                      </span>
                     </button>
                   );
                 })}
@@ -1755,6 +1811,34 @@ function CreateView() {
           </div>
           {creationType === "video" && (
             <>
+              <div className="aiv-duration-control">
+                <span>
+                  <span>
+                    <strong>Duration</strong>
+                    <small>
+                      Compatible {videoModel.name} clip lengths
+                      {hasCustomDuration
+                        ? ` · advanced controls currently produce ${(numFrames / frameRate).toFixed(2)}s`
+                        : ""}
+                    </small>
+                  </span>
+                  <output>{selectedDuration.seconds} sec</output>
+                </span>
+                <input
+                  type="range"
+                  min={0}
+                  max={durationOptions.length - 1}
+                  step={1}
+                  value={selectedDurationIndex}
+                  aria-label={`${videoModel.name} duration`}
+                  onChange={event => chooseDuration(Number(event.target.value))}
+                />
+                <span className="aiv-duration-marks" aria-hidden="true">
+                  {durationOptions.map(option => (
+                    <i key={option.seconds}>{option.seconds}s</i>
+                  ))}
+                </span>
+              </div>
               <div className="aiv-advanced-heading">
                 <div>
                   <strong>Generation controls</strong>

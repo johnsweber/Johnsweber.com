@@ -1820,6 +1820,31 @@ body.menu-open { overflow: hidden; }
 .aiv-choice-grid button strong { margin: auto 0 .45rem; font-size: 1.5rem; }
 .aiv-choice-grid button small { max-width: 430px; color: var(--aiv-muted); line-height: 1.45; }
 .aiv-choice-grid button > svg { position: absolute; top: 1rem; right: 1rem; width: 20px; color: var(--aiv-violet); }
+.aiv-model-picker { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .65rem; }
+.aiv-model-picker > button {
+  min-width: 0;
+  padding: .85rem;
+  display: grid;
+  grid-template-columns: 38px minmax(0,1fr);
+  gap: .75rem;
+  border: 1px solid var(--aiv-line);
+  border-radius: 16px;
+  color: var(--aiv-ink);
+  background: rgba(255,255,255,.58);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.aiv-model-picker > button:hover { border-color: rgba(104,69,223,.45); transform: translateY(-1px); }
+.aiv-model-picker > button.selected { border-color: var(--aiv-violet); background: rgba(104,69,223,.07); box-shadow: inset 0 0 0 1px var(--aiv-violet); }
+.aiv-model-picker-mark { width: 38px; height: 38px; display: grid; place-items: center; position: relative; border-radius: 12px; color: var(--aiv-violet); background: rgba(104,69,223,.1); }
+.aiv-model-picker-mark > svg { width: 18px; height: 18px; }
+.aiv-model-picker-mark > svg + svg { width: 13px; height: 13px; position: absolute; right: -4px; bottom: -4px; padding: 2px; border-radius: 50%; color: white; background: var(--aiv-violet); }
+.aiv-model-picker-copy { min-width: 0; display: flex; flex-direction: column; gap: .28rem; }
+.aiv-model-picker-copy > strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: .84rem; }
+.aiv-model-picker-copy > small { min-height: 2.5em; color: var(--aiv-muted); font-size: .62rem; line-height: 1.28; }
+.aiv-model-picker-meta { display: flex; flex-wrap: wrap; gap: .28rem; margin-top: .18rem; }
+.aiv-model-picker-meta b { padding: .2rem .38rem; border-radius: 999px; color: var(--aiv-violet); background: rgba(104,69,223,.09); font-size: .52rem; line-height: 1; }
 .aiv-upload {
   min-height: 260px;
   margin-bottom: 1rem;
@@ -1885,6 +1910,15 @@ body.menu-open { overflow: hidden; }
 .aiv-seed { display: flex; flex-direction: column; gap: .6rem; }
 .aiv-seed small { color: var(--aiv-muted); font-size: .68rem; line-height: 1.4; }
 .aiv-custom-canvas { width: 100%; min-height: 48px; display: grid; place-items: center; border: 1px solid var(--aiv-line); border-radius: 14px; background: rgba(255,255,255,.6); font-size: .8rem; font-weight: 700; }
+.aiv-duration-control { margin-top: 1.5rem; padding: 1rem 1.1rem; border: 1px solid rgba(104,69,223,.2); border-radius: 18px; background: linear-gradient(135deg,rgba(104,69,223,.075),rgba(255,255,255,.7)); }
+.aiv-duration-control > span:first-child { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.aiv-duration-control > span:first-child > span { display: flex; flex-direction: column; gap: .2rem; }
+.aiv-duration-control strong { font-size: .86rem; }
+.aiv-duration-control small { color: var(--aiv-muted); font-size: .65rem; line-height: 1.35; }
+.aiv-duration-control output { min-width: 66px; padding: .35rem .55rem; border-radius: 999px; color: white; background: var(--aiv-violet); text-align: center; font-size: .72rem; font-weight: 800; }
+.aiv-duration-control input { width: 100%; margin: .9rem 0 .35rem; accent-color: var(--aiv-violet); cursor: pointer; }
+.aiv-duration-marks { display: flex; justify-content: space-between; color: var(--aiv-muted); }
+.aiv-duration-marks i { font-size: .62rem; font-style: normal; font-weight: 750; }
 .aiv-advanced-heading { margin: 2rem 0 1rem; padding-top: 1.5rem; display: flex; align-items: center; justify-content: space-between; gap: 1rem; border-top: 1px solid var(--aiv-line); }
 .aiv-advanced-heading > div { display: flex; flex-direction: column; gap: .3rem; }
 .aiv-advanced-heading strong { font-size: .95rem; }
@@ -2217,6 +2251,8 @@ body.menu-open { overflow: hidden; }
   .aiv-hero { grid-template-columns: 1fr; gap: 2rem; padding-top: 3.5rem; }
   .aiv-hero-orbit { width: min(330px,80vw); }
   .aiv-model-grid, .aiv-choice-grid { grid-template-columns: 1fr; }
+  .aiv-model-picker { grid-template-columns: 1fr; }
+  .aiv-model-picker-copy > small { min-height: 0; }
   .aiv-library-grid { grid-template-columns: repeat(2,minmax(0,1fr)); }
   .aiv-preset-row { grid-template-columns: 1fr; }
   .aiv-setting-row { grid-template-columns: 1fr; }

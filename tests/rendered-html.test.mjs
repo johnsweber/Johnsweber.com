@@ -393,6 +393,12 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
   assert.match(app, /Opening the merged video/);
   assert.match(app, /Your preview is in motion/);
+  assert.match(app, /aiv-model-picker/);
+  assert.match(app, /role=\{creationType === "video" \? "radiogroup"/);
+  assert.match(app, /Compatible \{videoModel\.name\} clip lengths/);
+  assert.match(app, /aria-label=\{`\$\{videoModel\.name\} duration`\}/);
+  assert.match(app, /setNumFrames\(option\.frames\)/);
+  assert.match(app, /String\(selectedDuration\.seconds\)/);
   assert.match(app, /aiv-generation-reference/);
   assert.match(app, /job\?\.progress \|\| 4/);
   assert.match(app, /GENERATION STOPPED/);

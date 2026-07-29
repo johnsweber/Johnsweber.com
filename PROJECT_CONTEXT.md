@@ -91,7 +91,11 @@ AI Video experiment (login required):
 - `/experiments/ai-video/create` — Picture/Video pill selector, generation
   forms, and submitted/pending result states. Image-capable video models always
   expose the reference-image picker and local preview; Demo mode previews the
-  selection but substitutes a sample result without uploading it.
+  selection but substitutes a sample result without uploading it. Video models
+  use a compact, keyboard-accessible web picker that summarizes reference-image,
+  audio, and duration capabilities. A duration slider exposes only the selected
+  model's supported clip lengths and synchronizes the underlying frame count
+  and frame rate.
 - `/experiments/ai-video/library` — unified private picture/video/scene library with
   All, Picture, Video, and Scene filters. Each card has an actions menu; Delete removes
   the user-owned media row, linked video job, and associated private R2 objects.
@@ -195,8 +199,9 @@ five minutes; this is an estimate, not provider telemetry.
     and a deterministic seed.
   - Lowest-compute defaults are 480p, 9 frames, 1 fps, 1 inference step,
     guidance 0, CRF 28, and seed 0.
-  - One-click presets: Test uses those minimums; Fast uses 480p, 81 frames at
-    16 fps, 20 steps, guidance 3.5, and CRF 23; Max uses 720p, 161 frames at
+  - One-click presets: Test uses the shortest supported 5-second duration at
+    480p with 1 inference step, guidance 0, and CRF 28; Fast uses 480p, 81 frames
+    at 16 fps, 20 steps, guidance 3.5, and CRF 23; Max uses 720p, 161 frames at
     16 fps, 80 steps, guidance 3.5, and CRF 14.
   - Runtime URL: `WAN22_MODAL_URL`.
   - Current Modal app/function: `video-models` / `wan_api`.
@@ -213,8 +218,9 @@ five minutes; this is an estimate, not provider telemetry.
   - Creator exposes 256–1920 width and height in 32-pixel increments,
     9–241 frames in `8n+1` increments, 1–50 fps, and a deterministic seed.
   - Lowest-compute defaults are `256x256`, 9 frames, 1 fps, and seed 0.
-  - One-click presets: Test uses those minimums; Fast uses `768x512`, 121
-    frames at 24 fps; Max uses `1920x1088`, 241 frames at 24 fps.
+  - One-click presets: Test uses the shortest supported 5-second duration at
+    `256x256`; Fast uses `768x512`, 121 frames at 24 fps; Max uses
+    `1920x1088`, 241 frames at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
   - Current Modal app/function: `ltx-2-3` / `ltx_api`.
   - Current base route:
