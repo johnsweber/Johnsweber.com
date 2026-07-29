@@ -157,6 +157,10 @@ function isPending(status: MediaStatus) {
   return status === "submitted" || status === "pending";
 }
 
+function isMissingSceneVideo(media: PublicMedia) {
+  return media.mediaType === "video" && media.modelKey === "missing";
+}
+
 function formatDuration(seconds: number | null | undefined) {
   if (!seconds || !Number.isFinite(seconds)) return "—";
   const rounded = Math.round(seconds);
@@ -2540,15 +2544,34 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
     const objectUrls: string[] = [];
     const preload = async () => {
       const playable = items.filter(item => item.status === "complete" && item.hasContent);
+      const missingIds: string[] = [];
       try {
-        const loaded = await Promise.all(playable.map(async item => {
+        const loaded = (await Promise.all(playable.map(async item => {
           const response = await authorizedFetch(`/api/experiments/ai-video/media/${item.id}/content`);
-          if (!response.ok) throw new Error("A scene video could not be preloaded.");
+          if (!response.ok) {
+            missingIds.push(item.id);
+            return null;
+          }
           const objectUrl = URL.createObjectURL(await response.blob());
           objectUrls.push(objectUrl);
           return [item.id, objectUrl] as const;
-        }));
-        if (active) setSources(Object.fromEntries(loaded));
+        }))).filter((entry): entry is readonly [string, string] => Boolean(entry));
+        if (active) {
+          setSources(Object.fromEntries(loaded));
+          if (missingIds.length) {
+            setItems(current => current.map(item =>
+              missingIds.includes(item.id)
+                ? {
+                    ...item,
+                    status: "failed",
+                    modelKey: "missing",
+                    hasContent: false,
+                    errorMessage: "This video file is no longer available.",
+                  }
+                : item
+            ));
+          }
+        }
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "Scene playback unavailable.");
       }
@@ -2561,9 +2584,11 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   }, [authorizedFetch, playableKey]);
 
   const hasPendingVideos = items.some(item => isPending(item.status));
+  const hasMissingVideos = items.some(isMissingSceneVideo);
+  const playableItems = items.filter(item => !isMissingSceneVideo(item));
   const allVideosReady =
-    items.length >= 2 &&
-    items.every(item =>
+    playableItems.length > 0 &&
+    playableItems.every(item =>
       item.status === "complete" &&
       item.hasContent &&
       Boolean(sources[item.id])
@@ -2584,6 +2609,11 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   function selectClip(itemIndex: number, localTime = 0, play = isPlaying) {
     if (itemIndex < 0 || itemIndex >= items.length) return;
     playbackRefs.current.forEach(video => video.pause());
+    if (isMissingSceneVideo(items[itemIndex])) {
+      setIndex(itemIndex);
+      setIsPlaying(false);
+      return;
+    }
     const video = playbackRefs.current.get(items[itemIndex]?.id);
     if (video) {
       video.currentTime = Math.max(0, Math.min(localTime, video.duration || localTime));
@@ -2593,8 +2623,22 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
     setIsPlaying(play);
   }
 
+  function nextPlayableIndex(afterIndex: number) {
+    return items.findIndex((item, itemIndex) =>
+      itemIndex > afterIndex && !isMissingSceneVideo(item)
+    );
+  }
+
   function togglePlayback() {
     if (!allVideosReady) return;
+    if (isMissingSceneVideo(current)) {
+      const nextIndex = nextPlayableIndex(index);
+      const targetIndex = nextIndex >= 0
+        ? nextIndex
+        : items.findIndex(item => !isMissingSceneVideo(item));
+      if (targetIndex >= 0) selectClip(targetIndex, 0, true);
+      return;
+    }
     if (playbackTime >= sceneDuration) {
       selectClip(0, 0, true);
       setPlaybackTime(0);
@@ -2721,7 +2765,9 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
       ) : (
         <section className="aiv-player">
           <div className="aiv-video-stage aiv-scene-stage">
-            {allVideosReady ? items.map((item, itemIndex) => (
+            {allVideosReady ? items.filter(item => !isMissingSceneVideo(item)).map(item => {
+              const itemIndex = items.findIndex(candidate => candidate.id === item.id);
+              return (
               <video
                 key={item.id}
                 ref={video => {
@@ -2735,8 +2781,9 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 playsInline
                 preload="auto"
                 onEnded={() => {
-                  if (itemIndex + 1 < items.length) {
-                    selectClip(itemIndex + 1, 0, true);
+                  const nextIndex = nextPlayableIndex(itemIndex);
+                  if (nextIndex >= 0) {
+                    selectClip(nextIndex, 0, true);
                   } else {
                     setPlaybackTime(sceneDuration);
                     setIsPlaying(false);
@@ -2754,11 +2801,18 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                   }
                 }}
               />
-            )) : (
+            )}) : (
               <div className="aiv-player-message">
                 <Clock3 aria-hidden="true" />
                 <strong>{hasPendingVideos ? "Finishing the scene videos..." : "Preloading the complete scene..."}</strong>
                 <span>Playback begins when every clip is ready for a seamless transition.</span>
+              </div>
+            )}
+            {allVideosReady && isMissingSceneVideo(current) && (
+              <div className="aiv-player-message aiv-missing-clip-message">
+                <AlertTriangle aria-hidden="true" />
+                <strong>Video {index + 1} is missing</strong>
+                <span>The rest of the scene is still available. Choose another point on the timeline or replace this clip.</span>
               </div>
             )}
             {allVideosReady && (
@@ -2827,7 +2881,7 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
               {items.map((item, itemIndex) => (
                 <div
                   key={item.id}
-                  className={`aiv-scene-segment ${itemIndex === index ? "active" : ""}`}
+                  className={`aiv-scene-segment ${itemIndex === index ? "active" : ""} ${isMissingSceneVideo(item) ? "missing" : ""}`}
                   style={{
                     width: sceneDuration
                       ? `${((item.durationSeconds || 0) / sceneDuration) * 100}%`
@@ -2835,9 +2889,13 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                   }}
                   aria-hidden="true"
                 >
-                  <PrivateMediaAsset mediaId={item.id} mediaType="video" thumbnail>
-                    <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
-                  </PrivateMediaAsset>
+                  {isMissingSceneVideo(item) ? (
+                    <span className="aiv-scene-missing"><AlertTriangle aria-hidden="true" /><b>Missing</b></span>
+                  ) : (
+                    <PrivateMediaAsset mediaId={item.id} mediaType="video" thumbnail>
+                      <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
+                    </PrivateMediaAsset>
+                  )}
                   <i>{itemIndex + 1}</i>
                 </div>
               ))}
@@ -2917,10 +2975,12 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 type="button"
                 className="aiv-action-button"
                 onClick={exportScene}
-                disabled={exporting || dirty || hasPendingVideos}
+                disabled={exporting || dirty || hasPendingVideos || hasMissingVideos}
               >
                 <Download aria-hidden="true" /> {
-                  hasPendingVideos
+                  hasMissingVideos
+                    ? "Missing video"
+                    : hasPendingVideos
                     ? "Waiting for videos"
                     : dirty
                       ? "Save before export"

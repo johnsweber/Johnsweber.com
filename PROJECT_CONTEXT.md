@@ -136,7 +136,11 @@ AI Video experiment (login required):
   thumbnails, follows playback with a playhead, and supports pointer, touch,
   and keyboard scrubbing across all clips. Native video controls are fully
   suppressed in favor of a scene-level play/pause control. Scrubbing resumes
-  playback only when the scene was already playing. A plus tile opens completed videos
+  playback only when the scene was already playing. Deleted or otherwise
+  missing dependent videos retain their ordered scene slot, appear as a
+  clearly marked Missing segment in the timeline, and do not prevent remaining
+  clips from loading or playing; export stays disabled until the dependency is
+  repaired. A plus tile opens completed videos
   from the user's library; additions remain a draft until **Save scene**
   replaces the ordered D1 scene membership. Export is unavailable while the
   draft is unsaved or a member video is pending. Export queues a CPU-only

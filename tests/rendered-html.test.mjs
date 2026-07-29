@@ -390,6 +390,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(videoService, /result\.output_id/);
   assert.match(videoService, /nextRetryState/);
   assert.match(database, /ai_video_scene_items/);
+  assert.match(database, /LEFT JOIN ai_video_media/);
+  assert.match(database, /model_key: "missing"/);
+  assert.match(app, /Video \{index \+ 1\} is missing/);
+  assert.match(app, /aiv-scene-segment.*missing/);
   assert.match(database, /replaceAiVideoSceneItems/);
   assert.match(database, /AS effective_status/);
   assert.match(database, /clip\.status IN \('submitted', 'pending'\)/);

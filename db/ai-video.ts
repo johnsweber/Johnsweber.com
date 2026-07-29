@@ -655,7 +655,6 @@ export async function deleteAiVideoMediaItem(
   const db = await getAiVideoDb();
   const statements = [
     db.prepare("DELETE FROM ai_video_processing_tasks WHERE output_media_id = ? AND user_id = ?").bind(id, userId),
-    db.prepare("DELETE FROM ai_video_scene_items WHERE media_id = ? AND user_id = ?").bind(id, userId),
     db.prepare("DELETE FROM ai_video_scene_items WHERE scene_id IN (SELECT id FROM ai_video_scenes WHERE media_id = ? AND user_id = ?)").bind(id, userId),
     db.prepare("DELETE FROM ai_video_processing_tasks WHERE scene_id IN (SELECT id FROM ai_video_scenes WHERE media_id = ? AND user_id = ?)").bind(id, userId),
     db.prepare("DELETE FROM ai_video_scenes WHERE media_id = ? AND user_id = ?").bind(id, userId),
@@ -788,10 +787,42 @@ export async function getAiVideoScene(id: string, userId: string) {
   const db = await getAiVideoDb();
   const scene = await db.prepare("SELECT * FROM ai_video_scenes WHERE (id=? OR media_id=?) AND user_id=?").bind(id,id,userId).first<AiVideoScene>();
   if (!scene) return null;
-  const items = (await db.prepare(`
-    SELECT m.* FROM ai_video_scene_items i JOIN ai_video_media m ON m.id=i.media_id
+  const rows = (await db.prepare(`
+    SELECT i.media_id AS dependency_media_id, i.position, m.*
+    FROM ai_video_scene_items i
+    LEFT JOIN ai_video_media m ON m.id=i.media_id AND m.user_id=i.user_id
     WHERE i.scene_id=? AND i.user_id=? ORDER BY i.position ASC
-  `).bind(scene.id,userId).all<AiVideoMedia>()).results;
+  `).bind(scene.id,userId).all<Partial<AiVideoMedia> & {
+    dependency_media_id: string;
+    position: number;
+  }>()).results;
+  const items = rows.map((row): AiVideoMedia => {
+    if (row.id) return row as AiVideoMedia;
+    return {
+      id: row.dependency_media_id,
+      user_id: userId,
+      media_type: "video",
+      status: "failed",
+      model_key: "missing",
+      prompt: "Missing video",
+      negative_prompt: null,
+      quality: "unavailable",
+      width: 0,
+      height: 0,
+      duration_seconds: 0,
+      fps: null,
+      seed: 0,
+      job_id: null,
+      thumbnail_object_key: null,
+      last_frame_object_key: null,
+      content_object_key: null,
+      content_mime_type: null,
+      error_message: "This video is no longer available.",
+      created_at: scene.created_at,
+      updated_at: scene.updated_at,
+      completed_at: null,
+    };
+  });
   return { scene, items };
 }
 
