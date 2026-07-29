@@ -53,8 +53,12 @@ Public/general:
 
 - `/` — portfolio and playground landing page. Its hero collage sits on a
   white gallery canvas; the portrait stays above an interactive HTML visual
-  representing hands-on, playful, logical work. The visual responds to
-  pointer/touch input and optionally to device orientation.
+  representing hands-on, playful, logical work as an abstract watercolor
+  circuit field. Its orbs respond continuously to pointer or phone tilt; hover
+  and touch trigger a larger color bloom.
+- HTML images inherit a subtle hover lift, tilt, color-softening, and blurred
+  shadow treatment. The portrait and dog use opposing tilts with an additional
+  faint watercolor glow.
 - `/hero-preview` — unlinked, no-index phone preview for the pointer/touch and
   device-orientation-responsive Logic Playground hero concept. It is a draft
   route and is not yet used by the production homepage.

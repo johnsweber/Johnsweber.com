@@ -31,6 +31,19 @@ body {
 a { color: inherit; text-decoration: none; }
 button, a { -webkit-tap-highlight-color: transparent; }
 main { min-height: 100vh; overflow: hidden; }
+img {
+  transform-origin: center;
+  transition:
+    transform .5s cubic-bezier(.16,.84,.22,1),
+    filter .5s ease;
+}
+img:hover {
+  transform: translate3d(0,-2px,0) rotate(.65deg) scale(1.012);
+  filter:
+    saturate(1.045)
+    contrast(1.015)
+    drop-shadow(0 12px 18px rgba(24,93,216,.14));
+}
 
 .nav {
   width: min(1480px, calc(100% - 48px));
@@ -124,8 +137,37 @@ main { min-height: 100vh; overflow: hidden; }
   display: block;
   object-fit: cover;
 }
+.portrait-card::after, .dog-card::after {
+  content: "";
+  position: absolute;
+  z-index: 1;
+  inset: -12%;
+  pointer-events: none;
+  opacity: 0;
+  border-radius: 42% 58% 55% 45%;
+  background:
+    radial-gradient(circle at 30% 38%,rgba(255,159,28,.3),transparent 34%),
+    radial-gradient(circle at 72% 60%,rgba(24,93,216,.26),transparent 38%),
+    radial-gradient(circle at 48% 75%,rgba(20,168,160,.2),transparent 34%);
+  filter: blur(20px);
+  mix-blend-mode: soft-light;
+  transform: scale(.78) rotate(-5deg);
+  transition:
+    opacity .55s ease,
+    transform .75s cubic-bezier(.16,.84,.22,1);
+}
+.portrait-card:hover::after, .dog-card:hover::after {
+  opacity: .5;
+  transform: scale(1.12) rotate(4deg);
+}
+.portrait-card:hover img {
+  transform: translate3d(0,-2px,0) rotate(-.7deg) scale(1.018);
+}
+.dog-card:hover img {
+  transform: translate3d(0,-2px,0) rotate(.8deg) scale(1.018);
+}
 .portrait-card span, .dog-card span {
-  position: absolute; left: 15px; bottom: 15px; padding: 8px 11px;
+  position: absolute; z-index: 2; left: 15px; bottom: 15px; padding: 8px 11px;
   border-radius: 999px; background: rgba(255,254,251,.9);
   font: 700 9px var(--font-geist-mono), monospace; letter-spacing: .09em;
 }
@@ -1055,7 +1097,14 @@ body.menu-open { overflow: hidden; }
   .section { padding-top: 80px; padding-bottom: 80px; }
   .project { min-height: 440px; }
 }
-@media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
+@media (prefers-reduced-motion: reduce) {
+  html { scroll-behavior: auto; }
+  img,
+  .portrait-card::after,
+  .dog-card::after {
+    transition: none;
+  }
+}
 
 /* AI Video experiment */
 .aiv-page,
