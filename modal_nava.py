@@ -197,7 +197,7 @@ class NAVA:
 @app.function(image=web_runtime, volumes={str(OUTPUT_ROOT): output_volume})
 @modal.asgi_app(requires_proxy_auth=True)
 def nava_api():
-    from fastapi import FastAPI, HTTPException
+    from fastapi import Body, FastAPI, HTTPException
     from fastapi.responses import FileResponse, JSONResponse
     from pydantic import BaseModel, Field, model_validator
 
@@ -229,8 +229,12 @@ def nava_api():
         return {"status": "ok", "model": MODEL_REPO, "gpu": "H200"}
 
     @web.post("/generate", status_code=202)
-    async def generate(request: GenerationRequest):
-        call = await NAVA().generate.spawn.aio(**request.model_dump())
+    async def generate(request=Body(...)):
+        try:
+            validated = GenerationRequest.model_validate(request)
+        except Exception as error:
+            raise HTTPException(status_code=422, detail=str(error)) from error
+        call = await NAVA().generate.spawn.aio(**validated.model_dump())
         return {
             "status": "queued",
             "call_id": call.object_id,

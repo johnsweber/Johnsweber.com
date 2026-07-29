@@ -174,6 +174,9 @@ test("separates picture and video creation models", async () => {
   assert.match(navaModal, /flash_attn-2\.8\.3/);
   assert.match(navaModal, /configs\/nava\.yaml/);
   assert.match(navaModal, /"--weight_dtype"/);
+  assert.match(navaModal, /request=Body\(\.\.\.\)/);
+  assert.match(navaModal, /GenerationRequest\.model_validate\(request\)/);
+  assert.doesNotMatch(navaModal, /request: GenerationRequest/);
   assert.match(source, /Reference voice/);
   assert.match(source, /const activeSection/);
   assert.match(source, /aria-current=\{activeSection === label \? "page"/);

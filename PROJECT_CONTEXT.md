@@ -245,6 +245,9 @@ five minutes; this is an estimate, not provider telemetry.
     health route validate. Deployment validation does not run paid inference;
     the first submitted Production request performs the model download and
     allocates the H200.
+  - `/generate` explicitly reads and validates its JSON body before spawning
+    the GPU method. This avoids FastAPI treating the locally declared request
+    model as a required query parameter.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 
