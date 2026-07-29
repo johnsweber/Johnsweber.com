@@ -400,6 +400,9 @@ When adding another experiment:
 
 ## Important files
 
+- `docs/technical-debt.md` — prioritized debt register, retirement criteria,
+  and the controlled foundation-refresh strategy. Read it before broad
+  refactors or rebuild decisions.
 - `app/layout.tsx` — root layout and auth provider wiring.
 - `app/site-navigation.tsx` — grid navigation and signed-in/out experience.
 - `app/auth-provider.tsx`, `app/auth-screen.tsx` — Clerk integration.
