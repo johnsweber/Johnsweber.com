@@ -3,12 +3,20 @@ import {
   getAiVideoMedia,
   getAiVideoMediaByJob,
   getAiVideoMediaItem,
+  getPendingTaskForMedia,
+  insertProcessingTask,
   type AiVideoMedia,
   type AiVideoJob,
   updateAiVideoMedia,
   updateAiVideoJob,
 } from "@/db/ai-video";
 import { getModelConfig } from "./ai-video-models";
+import {
+  processingEndpoint,
+  processingHeaders,
+  refreshProcessingTask,
+  sha256,
+} from "./ai-video-processing";
 
 function modalEndpoint(modelKey: string) {
   const model = getModelConfig(modelKey);
@@ -47,6 +55,7 @@ export function publicAiVideoJob(job: AiVideoJob) {
     estimatedSeconds: job.estimated_seconds,
     errorMessage: job.error_message,
     hasThumbnail: Boolean(job.thumbnail_object_key),
+    hasLastFrame: Boolean(job.last_frame_object_key),
     hasVideo: Boolean(job.output_object_key),
     createdAt: job.created_at,
     completedAt: job.completed_at,
@@ -68,6 +77,7 @@ export function publicAiVideoMedia(media: AiVideoMedia) {
     seed: media.seed,
     jobId: media.job_id,
     hasThumbnail: Boolean(media.thumbnail_object_key),
+    hasLastFrame: Boolean(media.last_frame_object_key),
     hasContent: Boolean(media.content_object_key),
     errorMessage: media.error_message,
     createdAt: media.created_at,
@@ -75,7 +85,15 @@ export function publicAiVideoMedia(media: AiVideoMedia) {
   };
 }
 
-export async function refreshAiVideoJob(job: AiVideoJob) {
+export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
+  if (job.output_object_key && job.status !== "complete" && job.status !== "failed") {
+    const media = await getAiVideoMediaByJob(job.id, job.user_id);
+    const task = media ? await getPendingTaskForMedia(media.id, "last_frame") : null;
+    if (task && task.status !== "complete" && task.status !== "failed") {
+      await refreshProcessingTask(task);
+      return (await getAiVideoJob(job.id, job.user_id)) || job;
+    }
+  }
   if (
     job.status === "complete" ||
     job.status === "failed" ||
@@ -143,6 +161,43 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
     });
 
     const completedAt = new Date().toISOString();
+    const media = await getAiVideoMediaByJob(job.id, job.user_id);
+    const processingService = processingEndpoint();
+    const processingAuth = processingHeaders();
+    if (media && processingService && processingAuth && origin) {
+      const token = crypto.randomUUID() + crypto.randomUUID();
+      const taskId = crypto.randomUUID();
+      const task = {
+        id: taskId, user_id: job.user_id, task_type: "last_frame" as const,
+        status: "submitted" as const, progress: 5, source_media_id: media.id,
+        scene_id: null, output_media_id: media.id, modal_call_id: null,
+        modal_result_path: null, access_token_hash: await sha256(token),
+        error_message: null, created_at: completedAt, updated_at: completedAt, completed_at: null,
+      };
+      await insertProcessingTask(task);
+      const response = await fetch(`${processingService}/last-frame`, {
+        method: "POST", headers: processingAuth,
+        body: JSON.stringify({
+          source_url: `${origin}/api/experiments/ai-video/processing/${taskId}/source/${media.id}`,
+          access_token: token,
+        }),
+        signal: AbortSignal.timeout(15_000),
+      });
+      const data = await response.json().catch(() => ({})) as { call_id?: string; result_path?: string };
+      if (response.ok && data.call_id && data.result_path) {
+        await (await import("@/db/ai-video")).updateProcessingTask(taskId, {
+          status: "pending", progress: 10, modal_call_id: data.call_id, modal_result_path: data.result_path,
+        });
+        await updateAiVideoJob(job.id, job.user_id, {
+          status: "running", progress: 96, output_object_key: outputKey,
+          output_mime_type: contentType, error_message: null,
+        });
+        await updateAiVideoMedia(media.id, job.user_id, {
+          status: "pending", content_object_key: outputKey, content_mime_type: contentType, error_message: null,
+        });
+        return (await getAiVideoJob(job.id, job.user_id)) || job;
+      }
+    }
     await updateAiVideoJob(job.id, job.user_id, {
       status: "complete",
       progress: 100,
@@ -151,7 +206,6 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
       completed_at: completedAt,
       error_message: null,
     });
-    const media = await getAiVideoMediaByJob(job.id, job.user_id);
     if (media) {
       await updateAiVideoMedia(media.id, job.user_id, {
         status: "complete",
@@ -171,7 +225,7 @@ export async function refreshAiVideoJob(job: AiVideoJob) {
   }
 }
 
-export async function refreshAiVideoMediaItem(media: AiVideoMedia) {
+export async function refreshAiVideoMediaItem(media: AiVideoMedia, origin?: string) {
   if (
     media.media_type !== "video" ||
     !media.job_id ||
@@ -180,9 +234,14 @@ export async function refreshAiVideoMediaItem(media: AiVideoMedia) {
   ) {
     return media;
   }
+  const postTask = await getPendingTaskForMedia(media.id, "last_frame");
+  if (postTask && postTask.status !== "complete" && postTask.status !== "failed") {
+    await refreshProcessingTask(postTask);
+    return (await getAiVideoMediaItem(media.id, media.user_id)) || media;
+  }
   const job = await getAiVideoJob(media.job_id, media.user_id);
   if (!job) return media;
-  await refreshAiVideoJob(job);
+  await refreshAiVideoJob(job, origin);
   return (
     (await getAiVideoMediaItem(media.id, media.user_id)) || media
   );

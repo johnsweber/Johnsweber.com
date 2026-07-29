@@ -60,6 +60,7 @@ export const aiVideoJobs = sqliteTable(
     sourceProvider: text("source_provider").notNull().default("upload"),
     sourceModelKey: text("source_model_key"),
     thumbnailObjectKey: text("thumbnail_object_key"),
+    lastFrameObjectKey: text("last_frame_object_key"),
     outputObjectKey: text("output_object_key"),
     outputMimeType: text("output_mime_type"),
     errorMessage: text("error_message"),
@@ -94,6 +95,7 @@ export const aiVideoMedia = sqliteTable(
     seed: integer("seed").notNull(),
     jobId: text("job_id"),
     thumbnailObjectKey: text("thumbnail_object_key"),
+    lastFrameObjectKey: text("last_frame_object_key"),
     contentObjectKey: text("content_object_key"),
     contentMimeType: text("content_mime_type"),
     errorMessage: text("error_message"),
@@ -110,5 +112,62 @@ export const aiVideoMedia = sqliteTable(
     ),
     index("ai_video_media_user_status_idx").on(table.userId, table.status),
     uniqueIndex("ai_video_media_job_uq").on(table.jobId),
+  ],
+);
+
+export const aiVideoScenes = sqliteTable(
+  "ai_video_scenes",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    mediaId: text("media_id").notNull(),
+    title: text("title").notNull(),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+  },
+  (table) => [
+    index("ai_video_scenes_user_created_idx").on(table.userId, table.createdAt),
+    uniqueIndex("ai_video_scenes_media_uq").on(table.mediaId),
+  ],
+);
+
+export const aiVideoSceneItems = sqliteTable(
+  "ai_video_scene_items",
+  {
+    id: text("id").primaryKey(),
+    sceneId: text("scene_id").notNull(),
+    userId: text("user_id").notNull(),
+    mediaId: text("media_id").notNull(),
+    position: integer("position").notNull(),
+    createdAt: text("created_at").notNull(),
+  },
+  (table) => [
+    uniqueIndex("ai_video_scene_items_position_uq").on(table.sceneId, table.position),
+    index("ai_video_scene_items_media_idx").on(table.mediaId),
+  ],
+);
+
+export const aiVideoProcessingTasks = sqliteTable(
+  "ai_video_processing_tasks",
+  {
+    id: text("id").primaryKey(),
+    userId: text("user_id").notNull(),
+    taskType: text("task_type").notNull(),
+    status: text("status").notNull().default("submitted"),
+    progress: integer("progress").notNull().default(0),
+    sourceMediaId: text("source_media_id"),
+    sceneId: text("scene_id"),
+    outputMediaId: text("output_media_id"),
+    modalCallId: text("modal_call_id"),
+    modalResultPath: text("modal_result_path"),
+    accessTokenHash: text("access_token_hash"),
+    errorMessage: text("error_message"),
+    createdAt: text("created_at").notNull(),
+    updatedAt: text("updated_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("ai_video_processing_user_status_idx").on(table.userId, table.status),
+    index("ai_video_processing_scene_idx").on(table.sceneId),
   ],
 );

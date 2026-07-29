@@ -75,6 +75,7 @@ export async function POST(request: Request) {
       seed,
       job_id: null,
       thumbnail_object_key: null,
+      last_frame_object_key: null,
       content_object_key: null,
       content_mime_type: null,
       error_message: null,

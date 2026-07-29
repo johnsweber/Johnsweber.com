@@ -20,9 +20,11 @@ import {
   Upload,
   Video,
   WandSparkles,
+  Download,
   X,
 } from "lucide-react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -40,8 +42,9 @@ import {
   useProductionMode,
 } from "@/lib/use-production-mode";
 
-type View = "home" | "create" | "library" | "player" | "media";
+type View = "home" | "create" | "library" | "player" | "media" | "scene";
 type CreationType = "picture" | "video";
+type MediaType = CreationType | "scene";
 type MediaStatus = "submitted" | "pending" | "complete" | "failed";
 type PictureModelKey = "base" | "animagine";
 
@@ -72,6 +75,7 @@ type PublicJob = {
   estimatedSeconds: number;
   errorMessage: string | null;
   hasThumbnail: boolean;
+  hasLastFrame: boolean;
   hasVideo: boolean;
   createdAt: string;
   completedAt: string | null;
@@ -79,7 +83,7 @@ type PublicJob = {
 
 type PublicMedia = {
   id: string;
-  mediaType: CreationType;
+  mediaType: MediaType;
   status: MediaStatus;
   modelKey: string;
   prompt: string;
@@ -91,6 +95,7 @@ type PublicMedia = {
   seed: number;
   jobId: string | null;
   hasThumbnail: boolean;
+  hasLastFrame: boolean;
   hasContent: boolean;
   errorMessage: string | null;
   createdAt: string;
@@ -98,6 +103,7 @@ type PublicMedia = {
 };
 
 function modelName(media: PublicMedia) {
+  if (media.mediaType === "scene") return "Scene";
   if (media.mediaType === "picture") {
     return PICTURE_MODELS[media.modelKey as PictureModelKey]?.name || media.modelKey;
   }
@@ -221,12 +227,14 @@ function PrivateMediaAsset({
   thumbnail = false,
   className,
   children,
+  onEnded,
 }: {
   mediaId: string;
   mediaType: CreationType;
   thumbnail?: boolean;
   className?: string;
   children?: ReactNode;
+  onEnded?: () => void;
 }) {
   const authorizedFetch = useAuthorizedFetch();
   const [url, setUrl] = useState("");
@@ -254,7 +262,7 @@ function PrivateMediaAsset({
 
   if (!url) return <>{children}</>;
   return mediaType === "video" && !thumbnail ? (
-    <video className={className} src={url} controls autoPlay playsInline />
+    <video className={className} src={url} controls autoPlay playsInline onEnded={onEnded} />
   ) : (
     <img className={className} src={url} alt="" />
   );
@@ -298,18 +306,18 @@ function MediaCard({
   return (
     <article className="aiv-library-card">
       <Link
-        href={`/experiments/ai-video/media/${media.id}`}
+        href={media.mediaType === "scene" ? `/experiments/ai-video/scene/${media.id}` : `/experiments/ai-video/media/${media.id}`}
         className="aiv-library-visual"
         aria-label={`Open ${media.mediaType}: ${media.prompt}`}
       >
         <div className="aiv-thumb">
         {media.hasThumbnail ? (
-          <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType} thumbnail>
+          <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType === "scene" ? "picture" : media.mediaType} thumbnail>
             <span className="aiv-thumb-placeholder"><Images aria-hidden="true" /></span>
           </PrivateMediaAsset>
         ) : (
           <span className="aiv-thumb-placeholder">
-            {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+            {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : media.mediaType === "scene" ? <Clapperboard aria-hidden="true" /> : <Video aria-hidden="true" />}
           </span>
         )}
         <PendingBadge status={media.status} />
@@ -317,14 +325,14 @@ function MediaCard({
           <span className="aiv-play"><Play aria-hidden="true" /></span>
         )}
         <span className="aiv-media-type">
-          {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : <Video aria-hidden="true" />}
+          {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : media.mediaType === "scene" ? <Clapperboard aria-hidden="true" /> : <Video aria-hidden="true" />}
           {media.mediaType}
         </span>
         </div>
       </Link>
       <div className="aiv-library-copy">
         <div className="aiv-library-copy-row">
-          <Link href={`/experiments/ai-video/media/${media.id}`} className="aiv-library-title">
+          <Link href={media.mediaType === "scene" ? `/experiments/ai-video/scene/${media.id}` : `/experiments/ai-video/media/${media.id}`} className="aiv-library-title">
             <strong>{media.prompt}</strong>
           </Link>
           {onDelete && (
@@ -467,7 +475,7 @@ function HomeView() {
   );
 }
 
-function ProgressPanel({ initialJob }: { initialJob: PublicJob }) {
+function ProgressPanel({ initialJob, sceneId }: { initialJob: PublicJob; sceneId?: string | null }) {
   const authorizedFetch = useAuthorizedFetch();
   const [job, setJob] = useState(initialJob);
 
@@ -512,7 +520,7 @@ function ProgressPanel({ initialJob }: { initialJob: PublicJob }) {
       </div>
       <div className="aiv-actions">
         {job.status === "complete" ? (
-          <Link href={`/experiments/ai-video/media/${job.id}`}><Play aria-hidden="true" /> View video</Link>
+          <Link href={sceneId ? `/experiments/ai-video/scene/${sceneId}` : `/experiments/ai-video/media/${job.id}`}><Play aria-hidden="true" /> {sceneId ? "View scene" : "View video"}</Link>
         ) : (
           <Link href="/experiments/ai-video"><House aria-hidden="true" /> Return home</Link>
         )}
@@ -535,14 +543,17 @@ function PicturePending() {
 }
 
 function CreateView() {
+  const searchParams = useSearchParams();
+  const extendMediaId = searchParams.get("extend");
+  const requestedSceneId = searchParams.get("scene");
   const authorizedFetch = useAuthorizedFetch();
   const { user } = useUser();
   const { useProduction } = useProductionMode(user?.id);
-  const [creationType, setCreationType] = useState<CreationType>("picture");
+  const [creationType, setCreationType] = useState<CreationType>(extendMediaId ? "video" : "picture");
   const [pictureModel, setPictureModel] = useState<PictureModelKey>("base");
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
   const videoModel = AI_VIDEO_MODELS[videoModelKey];
-  const [quality, setQuality] = useState("480p");
+  const [quality, setQuality] = useState(extendMediaId ? "480p" : "480p");
   const [duration, setDuration] = useState("5");
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
@@ -552,9 +563,22 @@ function CreateView() {
   const [error, setError] = useState("");
   const [job, setJob] = useState<PublicJob | null>(null);
   const [createdMedia, setCreatedMedia] = useState<PublicMedia | null>(null);
+  const [createdSceneId, setCreatedSceneId] = useState<string | null>(null);
+  const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    if (!extendMediaId) return;
+    authorizedFetch(`/api/experiments/ai-video/media/${extendMediaId}`)
+      .then(async response => {
+        const data = await response.json() as { media?: PublicMedia; error?: string };
+        if (!response.ok || !data.media?.hasLastFrame) throw new Error(data.error || "This video does not have a saved last frame.");
+        setExtendMedia(data.media);
+        setPrompt(`Continue the scene from the previous shot: ${data.media.prompt}`);
+      })
+      .catch(error => setError(error instanceof Error ? error.message : "Unable to extend this video."));
+  }, [authorizedFetch, extendMediaId]);
 
   function chooseCreationType(next: CreationType) {
     setCreationType(next);
@@ -612,6 +636,8 @@ function CreateView() {
         useProduction && videoModel.supportsImage ? "upload" : "none",
       );
       if (source) form.set("sourceImage", source);
+      if (extendMediaId) form.set("extendMediaId", extendMediaId);
+      if (requestedSceneId) form.set("sceneId", requestedSceneId);
       form.set("displayName", user?.fullName || "");
       form.set("email", user?.primaryEmailAddress?.emailAddress || "");
       form.set("avatarUrl", user?.imageUrl || "");
@@ -619,11 +645,12 @@ function CreateView() {
         method: "POST",
         body: form,
       });
-      const data = (await response.json()) as { job?: PublicJob; error?: string };
+      const data = (await response.json()) as { job?: PublicJob; sceneId?: string | null; error?: string };
       if (!response.ok || !data.job) {
         throw new Error(data.error || "Video generation could not start.");
       }
       setJob(data.job);
+      setCreatedSceneId(data.sceneId || null);
     } catch (submitError) {
       setError(
         submitError instanceof Error ? submitError.message : "Generation could not start.",
@@ -637,7 +664,7 @@ function CreateView() {
     return (
       <main className="aiv-page">
         <ExperimentHeader />
-        <ProgressPanel initialJob={job} />
+        <ProgressPanel initialJob={job} sceneId={createdSceneId} />
         <BottomNavigation />
       </main>
     );
@@ -743,7 +770,15 @@ function CreateView() {
               </small>
             </div>
           </div>
-          {creationType === "video" && videoModel.supportsImage && useProduction && (
+          {creationType === "video" && videoModel.supportsImage && useProduction && extendMedia ? (
+            <div className="aiv-upload has-preview aiv-extend-source">
+              <PrivateMediaAsset mediaId={extendMedia.id} mediaType="picture" thumbnail>
+                <Clock3 aria-hidden="true" />
+              </PrivateMediaAsset>
+              <strong>Saved last frame</strong>
+              <span>This exact frame starts the next clip.</span>
+            </div>
+          ) : creationType === "video" && videoModel.supportsImage && useProduction && (
             <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
               {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
               <strong>{source ? source.name : "Choose source image"}</strong>
@@ -825,7 +860,8 @@ function CreateView() {
               (useProduction &&
                 creationType === "video" &&
                 videoModel.supportsImage &&
-                !source)
+                !source &&
+                !extendMedia)
             }
           >
             {submitting ? "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
@@ -839,7 +875,7 @@ function CreateView() {
 
 function LibraryView() {
   const { media, loading, error, deleteMedia } = useMedia(true);
-  const [filter, setFilter] = useState<"all" | CreationType>("all");
+  const [filter, setFilter] = useState<"all" | MediaType>("all");
   const filtered = filter === "all" ? media : media.filter((item) => item.mediaType === filter);
   return (
     <main className="aiv-page">
@@ -850,7 +886,7 @@ function LibraryView() {
           <Link href="/experiments/ai-video/create"><Plus aria-hidden="true" /> New media</Link>
         </div>
         <div className="aiv-library-filter" role="group" aria-label="Filter library by media type">
-          {(["all", "picture", "video"] as const).map((option) => (
+          {(["all", "picture", "video", "scene"] as const).map((option) => (
             <button
               type="button"
               key={option}
@@ -860,6 +896,7 @@ function LibraryView() {
             >
               {option === "picture" && <PictureIcon aria-hidden="true" />}
               {option === "video" && <Video aria-hidden="true" />}
+              {option === "scene" && <Clapperboard aria-hidden="true" />}
               {option}
             </button>
           ))}
@@ -898,6 +935,7 @@ function MediaView({
   const authorizedFetch = useAuthorizedFetch();
   const [media, setMedia] = useState<PublicMedia | null>(initialMedia);
   const [error, setError] = useState("");
+  const [sceneId, setSceneId] = useState<string | null>(null);
 
   useEffect(() => {
     if (media?.status === "complete" || media?.status === "failed") return;
@@ -906,10 +944,11 @@ function MediaView({
     const load = async () => {
       try {
         const response = await authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`);
-        const data = (await response.json()) as { media?: PublicMedia; error?: string };
+        const data = (await response.json()) as { media?: PublicMedia; sceneId?: string | null; error?: string };
         if (!response.ok || !data.media) throw new Error(data.error || "Media unavailable.");
         if (!active) return;
         setMedia(data.media);
+        setSceneId(data.sceneId || null);
         if (isPending(data.media.status)) timer = window.setTimeout(load, 3_000);
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "Media unavailable.");
@@ -940,7 +979,7 @@ function MediaView({
       ) : (
         <section className="aiv-player">
           <div className={`aiv-video-stage ${media.mediaType === "picture" ? "picture" : ""}`}>
-            <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType} className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}>
+            <PrivateMediaAsset mediaId={media.id} mediaType={media.mediaType === "video" ? "video" : "picture"} className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}>
               <div className="aiv-player-message">Preparing secure {media.mediaType}…</div>
             </PrivateMediaAsset>
           </div>
@@ -952,6 +991,123 @@ function MediaView({
               {" · "}Seed {media.seed}
             </span>
           </div>
+          {media.mediaType === "video" && (
+            <div className="aiv-actions aiv-player-actions">
+              {media.hasLastFrame ? (
+                <Link href={`/experiments/ai-video/create?mode=video&extend=${media.id}${sceneId ? `&scene=${sceneId}` : ""}`}>
+                  <Plus aria-hidden="true" /> Extend video
+                </Link>
+              ) : (
+                <span className="aiv-muted-action"><Clock3 aria-hidden="true" /> Last frame is still being prepared</span>
+              )}
+              {sceneId && <Link className="secondary" href={`/experiments/ai-video/scene/${sceneId}`}><Clapperboard aria-hidden="true" /> Open scene</Link>}
+            </div>
+          )}
+        </section>
+      )}
+    </main>
+  );
+}
+
+type PublicTask = {
+  id: string; status: MediaStatus; progress: number; outputMediaId: string | null;
+  errorMessage: string | null;
+};
+
+function SceneView({ sceneId }: { sceneId: string }) {
+  const authorizedFetch = useAuthorizedFetch();
+  const [title, setTitle] = useState("Scene");
+  const [items, setItems] = useState<PublicMedia[]>([]);
+  const [index, setIndex] = useState(0);
+  const [task, setTask] = useState<PublicTask | null>(null);
+  const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+
+  const load = useCallback(async () => {
+    const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}`);
+    const data = await response.json() as {
+      scene?: { title: string }; items?: PublicMedia[]; exportTask?: PublicTask | null; error?: string;
+    };
+    if (!response.ok || !data.scene) throw new Error(data.error || "Scene unavailable.");
+    setTitle(data.scene.title);
+    setItems(data.items || []);
+    setTask(data.exportTask || null);
+    return data.exportTask;
+  }, [authorizedFetch, sceneId]);
+
+  useEffect(() => {
+    let active = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const current = await load();
+        if (active && current && isPending(current.status)) timer = window.setTimeout(poll, 3000);
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Scene unavailable.");
+      }
+    };
+    void poll();
+    return () => { active = false; window.clearTimeout(timer); };
+  }, [load]);
+
+  async function exportScene() {
+    setExporting(true);
+    setError("");
+    try {
+      const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}/export`, { method: "POST" });
+      const data = await response.json() as { task?: PublicTask | null; outputMediaId?: string; error?: string };
+      if (!response.ok) throw new Error(data.error || "Export could not start.");
+      if (data.task) setTask(data.task);
+      else if (data.outputMediaId) window.location.href = `/experiments/ai-video/media/${data.outputMediaId}`;
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "Export could not start.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const current = items[index];
+  return (
+    <main className="aiv-player-page">
+      <ExperimentHeader close />
+      {error && !current ? (
+        <section className="aiv-player-message"><strong>Scene unavailable</strong><span>{error}</span></section>
+      ) : !current ? (
+        <section className="aiv-player-message">Loading scene…</section>
+      ) : (
+        <section className="aiv-player">
+          <div className="aiv-video-stage">
+            <PrivateMediaAsset key={`${current.id}-${index}`} mediaId={current.id} mediaType="video" className="aiv-video"
+              onEnded={() => setIndex(value => value + 1 < items.length ? value + 1 : 0)}>
+              <div className="aiv-player-message">Preparing clip {index + 1}…</div>
+            </PrivateMediaAsset>
+          </div>
+          <div className="aiv-player-info">
+            <div><p className="aiv-kicker">SCENE · CLIP {index + 1} OF {items.length}</p><h1>{title}</h1><p>{current.prompt}</p></div>
+            <span>{items.reduce((sum, item) => sum + (item.durationSeconds || 0), 0)}s total</span>
+          </div>
+          <div className="aiv-scene-strip">
+            {items.map((item, itemIndex) => (
+              <button type="button" key={item.id} className={itemIndex === index ? "selected" : ""} onClick={() => setIndex(itemIndex)}>
+                <span>{itemIndex + 1}</span>{item.prompt}
+              </button>
+            ))}
+          </div>
+          {task && isPending(task.status) ? (
+            <div className="aiv-export-progress">
+              <Clock3 aria-hidden="true" /><div><strong>Export in progress · {task.progress}%</strong><span>The CPU service is joining and encoding the scene.</span></div>
+              <div className="aiv-progress-track"><span style={{ width: `${task.progress}%` }} /></div>
+            </div>
+          ) : task?.status === "complete" && task.outputMediaId ? (
+            <div className="aiv-actions"><Link href={`/experiments/ai-video/media/${task.outputMediaId}`}><Play aria-hidden="true" /> View exported video</Link></div>
+          ) : (
+            <div className="aiv-actions">
+              <button type="button" className="aiv-action-button" onClick={exportScene} disabled={exporting}>
+                <Download aria-hidden="true" /> {exporting ? "Submitting…" : "Export scene"}
+              </button>
+            </div>
+          )}
+          {error && <p className="aiv-form-error">{error}</p>}
         </section>
       )}
     </main>
@@ -969,6 +1125,7 @@ function ConfiguredAiVideoApp({ view, jobId }: { view: View; jobId?: string }) {
   if (view === "create") return <CreateView />;
   if (view === "library") return <LibraryView />;
   if ((view === "player" || view === "media") && jobId) return <PlayerView jobId={jobId} />;
+  if (view === "scene" && jobId) return <SceneView sceneId={jobId} />;
   return <HomeView />;
 }
 

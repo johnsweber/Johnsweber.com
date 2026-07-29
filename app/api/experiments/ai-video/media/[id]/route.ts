@@ -4,6 +4,7 @@ import {
   getAiVideoJob,
   getAiVideoMedia,
   getAiVideoMediaItem,
+  getSceneForMedia,
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
 import {
@@ -25,8 +26,9 @@ export async function GET(
     if (!media) {
       return Response.json({ error: "Media not found." }, { status: 404 });
     }
-    const refreshed = await refreshAiVideoMediaItem(media);
-    return Response.json({ media: publicAiVideoMedia(refreshed) });
+    const refreshed = await refreshAiVideoMediaItem(media, new URL(request.url).origin);
+    const scene = refreshed.media_type === "video" ? await getSceneForMedia(refreshed.id, user.id) : null;
+    return Response.json({ media: publicAiVideoMedia(refreshed), sceneId: scene?.id || null });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error: "Unable to load this media." }, { status: 500 });
@@ -54,9 +56,11 @@ export async function DELETE(
         [
           media.thumbnail_object_key,
           media.content_object_key,
+          media.last_frame_object_key,
           job?.source_object_key,
           job?.thumbnail_object_key,
           job?.output_object_key,
+          job?.last_frame_object_key,
         ].filter(
           (key): key is string => Boolean(key && !key.startsWith("demo:")),
         ),

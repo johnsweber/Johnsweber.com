@@ -1,6 +1,6 @@
 # Johnsweber.com project context
 
-Last updated: 2026-07-28
+Last updated: 2026-07-29
 
 ## Purpose and production
 
@@ -88,11 +88,14 @@ AI Video experiment (login required):
 - `/experiments/ai-video` — experiment home.
 - `/experiments/ai-video/create` — Picture/Video pill selector, generation
   forms, and submitted/pending result states.
-- `/experiments/ai-video/library` — unified private picture/video library with
-  All, Picture, and Video filters. Each card has an actions menu; Delete removes
+- `/experiments/ai-video/library` — unified private picture/video/scene library with
+  All, Picture, Video, and Scene filters. Each card has an actions menu; Delete removes
   the user-owned media row, linked video job, and associated private R2 objects.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
-  pending state.
+  pending state. Completed videos with a saved last frame offer **Extend video**.
+- `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
+  play in creation order and Export queues a CPU-only FFmpeg merge that creates
+  a new private video library item.
 - `/experiments/ai-video/video/:id` — private video player.
 - Bottom navigation provides Home, Create, Library, and placeholders.
 
@@ -108,6 +111,9 @@ AI Video APIs:
 - `DELETE /api/experiments/ai-video/media/:id`
 - `GET /api/experiments/ai-video/media/:id/content`
 - `GET /api/experiments/ai-video/media/:id/thumbnail`
+- `GET /api/experiments/ai-video/scenes/:id`
+- `POST /api/experiments/ai-video/scenes/:id/export`
+- `GET /api/experiments/ai-video/processing/:taskId/source/:mediaId`
 
 ## AI Video providers and flow
 
@@ -153,10 +159,15 @@ Job lifecycle:
 4. Source media is saved beneath the user's private R2 prefix.
 5. The Worker submits `/generate` to the selected GPU provider.
 6. The UI polls the media/job route while work is pending.
-7. The Worker saves the completed picture or downloads the completed MP4,
-   saves it
-   to R2, and marks the D1 job complete.
-8. Private thumbnail/content routes stream only after verifying ownership.
+7. The Worker saves the completed picture or downloads the completed MP4 to R2.
+8. Future generated videos queue a CPU-only Modal/FFmpeg task to extract and
+   privately save the final frame. The media remains Pending near completion
+   while this finishes.
+9. Extend preloads that saved frame into Wan and attaches the original and new
+   clip to a user-owned scene in creation order.
+10. Scene Export supplies authenticated private clip URLs to the CPU service;
+    the merged MP4 and its last frame return to R2 as a new video media item.
+11. Private thumbnail/content routes stream only after verifying ownership.
 
 Generation environment:
 
@@ -192,6 +203,10 @@ Owned only by AI Video:
   video jobs are backfilled into this table by migration `0002`.
 - `ai_video_jobs` — configuration, provider/model, progress, Modal call/result
   references, private object keys, error state, and timestamps for videos.
+- `ai_video_scenes` — user-owned scene metadata and its library media row.
+- `ai_video_scene_items` — ordered video membership for a scene.
+- `ai_video_processing_tasks` — pending/progress/error state and short-lived
+  source authorization for last-frame extraction and scene export.
 - D1 queries always include `user_id` for user-owned records.
 - R2 keys use:
   `experiments/ai-video/users/{clerkUserId}/{pictures|sources|videos}/...`
@@ -217,12 +232,15 @@ When adding another experiment:
 - `lib/production-mode.ts`, `lib/use-production-mode.ts` — request header and
   browser-session mode state.
 - `lib/ai-video-service.ts` — job projection, progress, result ingestion.
+- `lib/ai-video-processing.ts` — CPU task polling and result ingestion.
 - `db/schema.ts`, `db/ai-video.ts` — schema and D1 access.
 - `drizzle/` — production SQL migrations.
 - `worker/index.ts` — Cloudflare Worker entry.
 - `vite.config.ts` — vinext, Sites, and Cloudflare bindings.
 - `modal_app.py` — lightweight playground H100 health/probe service; the Wan
   and LTX generation deployments are separate Modal apps.
+- `modal_media_tools.py` — CPU-only FFmpeg service for last-frame extraction
+  and scene merge/export.
 
 ## Runtime configuration
 
@@ -240,6 +258,7 @@ Encrypted Worker runtime values:
 - `LTX23_MODAL_URL`
 - `LOCAL_IMAGE_GATEWAY_URL`
 - `LOCAL_IMAGE_GATEWAY_TOKEN`
+- `MEDIA_TOOLS_MODAL_URL`
 
 Use ignored local `.env*` files for development and Cloudflare Worker secrets
 for production. Never display or document their values.
@@ -288,6 +307,8 @@ deployment; ask before browser or visual testing.
   online and reachable at its configured URL.
 - Generated media is private in R2; there are no public bucket URLs.
 - Job result ingestion is request/poll driven, not a background queue.
+- Last-frame and export ingestion are also request/poll driven; pending work can
+  be left and safely resumed from the library or scene.
 - Result fetches have bounded timeouts; a temporary provider failure normally
   leaves a job running so a later poll can retry.
 - Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.

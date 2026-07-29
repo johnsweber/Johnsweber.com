@@ -1,6 +1,8 @@
 import { Buffer } from "node:buffer";
 import {
   ensureAiVideoSchema,
+  createOrAppendScene,
+  getAiVideoMediaItem,
   getAiVideoMedia,
   insertAiVideoMedia,
   insertAiVideoJob,
@@ -100,6 +102,8 @@ export async function POST(request: Request) {
     const sourceModelKey = String(form.get("sourceModelKey") || "");
     const seedValue = Number(form.get("seed") || Math.floor(Math.random() * 2_147_483_647));
     const source = form.get("sourceImage");
+    const extendMediaId = String(form.get("extendMediaId") || "");
+    const requestedSceneId = String(form.get("sceneId") || "");
     const settings = getGenerationSettings(modelKey, qualityKey, durationKey);
 
     if (!settings) {
@@ -122,24 +126,41 @@ export async function POST(request: Request) {
     let sourceFileName: string | null = null;
     const id = crypto.randomUUID();
 
+    let extendSource: AiVideoMedia | null = null;
+    if (extendMediaId) {
+      extendSource = await getAiVideoMediaItem(extendMediaId, user.id);
+      if (!extendSource || extendSource.media_type !== "video" || extendSource.status !== "complete") {
+        return Response.json({ error: "The video to extend is unavailable." }, { status: 404 });
+      }
+    }
+
     if (model.supportsImage && useProduction) {
-      if (!(source instanceof File) || !source.size) {
+      if (extendSource?.last_frame_object_key) {
+        const object = await (await getAiVideoMedia()).get(extendSource.last_frame_object_key);
+        if (!object) return Response.json({ error: "The saved last frame is unavailable." }, { status: 409 });
+        imageBytes = await object.arrayBuffer();
+        sourceObjectKey = `experiments/ai-video/users/${user.id}/sources/${id}.jpg`;
+        sourceFileName = `last-frame-${extendSource.id}.jpg`;
+        await (await getAiVideoMedia()).put(sourceObjectKey, imageBytes, {
+          httpMetadata: { contentType: "image/jpeg" },
+          customMetadata: { userId: user.id, experiment: "ai-video" },
+        });
+      } else if (!(source instanceof File) || !source.size) {
         return Response.json({ error: "Wan 2.2 requires a source image." }, { status: 400 });
-      }
-      if (!["image/jpeg", "image/png", "image/webp"].includes(source.type)) {
+      } else if (!["image/jpeg", "image/png", "image/webp"].includes(source.type)) {
         return Response.json({ error: "Use a JPG, PNG, or WebP image." }, { status: 400 });
-      }
-      if (source.size > 12 * 1024 * 1024) {
+      } else if (source.size > 12 * 1024 * 1024) {
         return Response.json({ error: "Source images must be 12 MB or smaller." }, { status: 400 });
+      } else {
+        imageBytes = await source.arrayBuffer();
+        const extension = source.type === "image/png" ? "png" : source.type === "image/webp" ? "webp" : "jpg";
+        sourceObjectKey = `experiments/ai-video/users/${user.id}/sources/${id}.${extension}`;
+        sourceFileName = source.name;
+        await (await getAiVideoMedia()).put(sourceObjectKey, imageBytes, {
+          httpMetadata: { contentType: source.type },
+          customMetadata: { userId: user.id, experiment: "ai-video" },
+        });
       }
-      imageBytes = await source.arrayBuffer();
-      const extension = source.type === "image/png" ? "png" : source.type === "image/webp" ? "webp" : "jpg";
-      sourceObjectKey = `experiments/ai-video/users/${user.id}/sources/${id}.${extension}`;
-      sourceFileName = source.name;
-      await (await getAiVideoMedia()).put(sourceObjectKey, imageBytes, {
-        httpMetadata: { contentType: source.type },
-        customMetadata: { userId: user.id, experiment: "ai-video" },
-      });
     }
 
     await upsertSharedUser(user.id, {
@@ -165,6 +186,7 @@ export async function POST(request: Request) {
       seed: seedValue,
       job_id: id,
       thumbnail_object_key: sourceObjectKey,
+      last_frame_object_key: null,
       content_object_key: null,
       content_mime_type: null,
       error_message: null,
@@ -205,6 +227,7 @@ export async function POST(request: Request) {
           ? sourceModelKey
           : null,
       thumbnail_object_key: sourceObjectKey,
+      last_frame_object_key: null,
       output_object_key: null,
       output_mime_type: null,
       error_message: null,
@@ -213,6 +236,9 @@ export async function POST(request: Request) {
       completed_at: null,
     };
     await insertAiVideoJob(job);
+    const scene = extendSource
+      ? await createOrAppendScene(user.id, extendSource, id, requestedSceneId || undefined)
+      : null;
 
     if (!useProduction) {
       const asset = demoAssetFor("video", seedValue);
@@ -230,6 +256,7 @@ export async function POST(request: Request) {
       await updateAiVideoMedia(id, user.id, {
         status: "complete",
         thumbnail_object_key: thumbnailObjectKey,
+        last_frame_object_key: thumbnailObjectKey,
         content_object_key: contentObjectKey,
         content_mime_type: asset.mimeType,
         completed_at: completedAt,
@@ -241,11 +268,13 @@ export async function POST(request: Request) {
             ...job,
             status: "complete",
             progress: 100,
-            thumbnail_object_key: thumbnailObjectKey,
+        thumbnail_object_key: thumbnailObjectKey,
+        last_frame_object_key: thumbnailObjectKey,
             output_object_key: contentObjectKey,
             output_mime_type: asset.mimeType,
             completed_at: completedAt,
           }),
+          sceneId: scene?.id || null,
         },
         { status: 201 },
       );
@@ -337,6 +366,7 @@ export async function POST(request: Request) {
           modal_result_path: resultPath,
           progress: 4,
         }),
+        sceneId: scene?.id || null,
       },
       { status: 202 },
     );

@@ -203,3 +203,24 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /resultPath\?\.split/);
   assert.match(source, /modal_call_id: callId/);
 });
+
+test("supports saved last frames, extendable scenes, and CPU exports", async () => {
+  const app = await readFile(
+    new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
+    "utf8",
+  );
+  const database = await readFile(new URL("../db/ai-video.ts", import.meta.url), "utf8");
+  const processing = await readFile(
+    new URL("../lib/ai-video-processing.ts", import.meta.url),
+    "utf8",
+  );
+  const modal = await readFile(new URL("../modal_media_tools.py", import.meta.url), "utf8");
+  assert.match(app, /Extend video/);
+  assert.match(app, /function SceneView/);
+  assert.match(app, /Export scene/);
+  assert.match(database, /ai_video_scene_items/);
+  assert.match(database, /last_frame_object_key/);
+  assert.match(processing, /scene_export/);
+  assert.match(modal, /ffmpeg/);
+  assert.match(modal, /merge_videos/);
+});

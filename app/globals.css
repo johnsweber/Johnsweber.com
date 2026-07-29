@@ -1938,6 +1938,21 @@ body.menu-open { overflow: hidden; }
 .aiv-player-message { min-height: calc(100vh - 86px); display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 1rem; color: #aaa5b8; text-align: center; }
 .aiv-player-message strong { color: white; font-size: 2rem; }
 .aiv-player-message a { color: white; }
+.aiv-player-actions { width: min(1280px,calc(100% - .5rem)); margin: 0 auto; }
+.aiv-muted-action { display: inline-flex; align-items: center; gap: .55rem; color: #aaa5b8; font-size: .82rem; }
+.aiv-muted-action svg { width: 17px; }
+.aiv-extend-source { cursor: default; }
+.aiv-extend-source img { width: 100%; max-height: 340px; object-fit: contain; border-radius: 1rem; }
+.aiv-scene-strip { display: flex; gap: .7rem; overflow-x: auto; padding: .5rem .25rem 1rem; }
+.aiv-scene-strip button { min-width: 180px; max-width: 260px; color: #aaa5b8; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 1rem; padding: .8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.aiv-scene-strip button span { display: inline-grid; place-items: center; width: 1.65rem; height: 1.65rem; margin-right: .55rem; border-radius: 50%; background: rgba(255,255,255,.09); color: white; }
+.aiv-scene-strip button.selected { border-color: #72a8ff; background: rgba(54,126,255,.16); color: white; }
+.aiv-export-progress { margin: 1rem .25rem; padding: 1rem; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 1rem; color: white; display: grid; grid-template-columns: auto 1fr; gap: .8rem; align-items: center; }
+.aiv-export-progress > svg { width: 22px; color: #72a8ff; }
+.aiv-export-progress div span { display: block; color: #aaa5b8; font-size: .78rem; }
+.aiv-export-progress .aiv-progress-track { grid-column: 1 / -1; width: 100%; margin: 0; }
+.aiv-action-button { display: inline-flex; align-items: center; gap: .55rem; border: 0; border-radius: 999px; padding: .9rem 1.2rem; background: #2768dc; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.aiv-action-button svg { width: 18px; }
 .aiv-player-page .aiv-progress-panel { color: white; }
 .aiv-player-page .aiv-progress-panel h1, .aiv-player-page .aiv-progress-meta strong { color: white; }
 .aiv-player-page .aiv-progress-panel > p:not(.aiv-kicker), .aiv-player-page .aiv-progress-meta { color: #aaa5b8; }

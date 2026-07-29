@@ -16,12 +16,12 @@ export async function GET(request: Request) {
     await ensureAiVideoSchema();
     const type = new URL(request.url).searchParams.get("type");
     const mediaType =
-      type === "picture" || type === "video" ? type : undefined;
+      type === "picture" || type === "video" || type === "scene" ? type : undefined;
     const media = await listAiVideoMedia(user.id, mediaType);
     const refreshed = await Promise.all(
       media.map((item) =>
         item.status === "submitted" || item.status === "pending"
-          ? refreshAiVideoMediaItem(item)
+          ? refreshAiVideoMediaItem(item, new URL(request.url).origin)
           : item,
       ),
     );
@@ -31,4 +31,3 @@ export async function GET(request: Request) {
     return Response.json({ error: "Unable to load your media." }, { status: 500 });
   }
 }
-
