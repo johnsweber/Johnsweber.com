@@ -182,6 +182,9 @@ test("separates picture and video creation models", async () => {
   assert.match(navaModal, /GenerationRequest\.model_validate\(request\)/);
   assert.match(navaModal, /stderr=subprocess\.STDOUT/);
   assert.match(navaModal, /NAVA inference exited with status/);
+  assert.match(navaModal, /NAVA model cache is incomplete; missing/);
+  assert.match(navaModal, /cwd=MODEL_ROOT/);
+  assert.doesNotMatch(navaModal, /cwd=NAVA_ROOT/);
   assert.match(navaModal, /modal\.exception\.UserCodeException/);
   assert.match(navaModal, /\{"status": "failed", "error": message\[-8_000:\]\}/);
   assert.doesNotMatch(navaModal, /request: GenerationRequest/);

@@ -81,6 +81,19 @@ class NAVA:
 
         snapshot_download(MODEL_REPO, local_dir=MODEL_ROOT)
         model_volume.commit()
+        required_weights = [
+            MODEL_ROOT / "NAVA_fp8.safetensors",
+            MODEL_ROOT / "Wan2.2-TI2V-5B" / "Wan2.2_VAE.pth",
+            MODEL_ROOT
+            / "Wan2.2-TI2V-5B"
+            / "models_t5_umt5-xxl-enc-bf16.pth",
+            MODEL_ROOT / "params" / "LTX2" / "ltx-2.3-22b-dev_audio_vae.safetensors",
+        ]
+        missing = [str(path.relative_to(MODEL_ROOT)) for path in required_weights if not path.is_file()]
+        if missing:
+            raise RuntimeError(
+                "NAVA model cache is incomplete; missing: " + ", ".join(missing)
+            )
 
     @modal.method()
     def generate(
@@ -175,7 +188,10 @@ class NAVA:
         with inference_log.open("w", encoding="utf-8") as log:
             completed = subprocess.run(
                 command,
-                cwd=NAVA_ROOT,
+                # The official NAVA weight bundle contains relative paths such
+                # as ./Wan2.2-TI2V-5B and ./params/LTX2. Run from the persistent
+                # weight root while invoking the source script by absolute path.
+                cwd=MODEL_ROOT,
                 stdout=log,
                 stderr=subprocess.STDOUT,
                 text=True,

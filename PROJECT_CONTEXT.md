@@ -258,6 +258,10 @@ five minutes; this is an estimate, not provider telemetry.
     inference exit returns the useful tail as a terminal `status: failed`
     result, so the Worker records the actual model diagnostic and stops polling
     instead of retrying a generic HTTP 500.
+  - The persistent model volume holds the official NAVA bundle, including its
+    `Wan2.2-TI2V-5B` VAE/T5 tree and LTX audio VAE. Inference runs with that
+    volume root as its working directory because NAVA resolves those dependency
+    paths relatively. Container startup checks the required files explicitly.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 
