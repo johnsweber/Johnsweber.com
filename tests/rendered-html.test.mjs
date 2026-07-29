@@ -238,6 +238,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     new URL("../app/api/experiments/ai-video/scenes/[id]/export/route.ts", import.meta.url),
     "utf8",
   );
+  const browserFrameRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/media/[id]/last-frame/route.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(app, /Extend video/);
   assert.match(app, /Reference image/);
   assert.match(app, /Previewing the saved frame/);
@@ -248,6 +252,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Scan timeline/);
   assert.match(app, /toDataURL\("image\/jpeg"/);
   assert.match(app, /Math\.ceil\(measuredDuration \/ 3\)/);
+  assert.match(app, /canvas\.toBlob/);
+  assert.match(app, /Capturing the last frame in your browser/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
@@ -264,5 +270,7 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(modal, /Range/);
   assert.match(modal, /range\(4\)/);
   assert.match(processingSource, /Content-Range/);
+  assert.match(browserFrameRoute, /source: "browser-capture"/);
+  assert.match(browserFrameRoute, /last_frame_object_key: key/);
   assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
 });

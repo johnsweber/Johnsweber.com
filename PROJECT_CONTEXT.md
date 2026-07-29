@@ -183,7 +183,10 @@ Job lifecycle:
 7. The Worker saves the completed picture or downloads the completed MP4 to R2.
 8. Future generated videos queue a CPU-only Modal/FFmpeg task to extract and
    privately save the final frame. The media remains Pending near completion
-   while this finishes.
+   while this finishes. If that CPU task does not produce a frame, opening the
+   completed video triggers an authenticated browser fallback: a separate
+   video element seeks to the final frame, canvas encodes it as JPEG, and
+   `POST /api/experiments/ai-video/media/:id/last-frame` saves it to private R2.
 9. Extend preloads that saved frame into Wan and attaches the original and new
    clip to a user-owned scene in creation order.
 10. Scene Export always supplies authenticated private clip URLs to the CPU
