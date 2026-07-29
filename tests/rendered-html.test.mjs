@@ -279,6 +279,14 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     new URL("../app/api/experiments/ai-video/media/[id]/last-frame/route.ts", import.meta.url),
     "utf8",
   );
+  const queueRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/queue/route.ts", import.meta.url),
+    "utf8",
+  );
+  const cancelRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/queue/cancel/route.ts", import.meta.url),
+    "utf8",
+  );
   assert.match(app, /Extend video/);
   assert.match(app, /Reference image/);
   assert.match(app, /Previewing the saved frame/);
@@ -293,6 +301,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Preparing the last frame on the server/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
+  assert.match(app, /href: "\/experiments\/ai-video\/queue"/);
+  assert.match(app, /function QueueView/);
+  assert.match(app, /All processes/);
+  assert.match(app, /Cancelling\.\.\./);
   assert.match(app, /Add from library/);
   assert.match(app, /Save scene/);
   assert.match(app, /preload="auto"/);
@@ -321,6 +333,11 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.doesNotMatch(browserFrameRoute, /request\.formData/);
   assert.match(modal, /volume\.reload\(\)/);
   assert.match(modal, /"-update", "1"/);
+  assert.match(modal, /cancel\.aio\(\)/);
+  assert.match(queueRoute, /listProcessingTasks/);
+  assert.match(queueRoute, /remainingSeconds/);
+  assert.match(cancelRoute, /Cancelled by user\./);
+  assert.match(cancelRoute, /\/cancel\/\$\{encodeURIComponent\(callId\)\}/);
   assert.match(sceneRoute, /export async function PATCH/);
   assert.match(sceneRoute, /replaceAiVideoSceneItems/);
   assert.match(exportRoute, /Wait for every scene video to finish/);

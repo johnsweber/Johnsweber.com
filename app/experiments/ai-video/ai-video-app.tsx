@@ -10,6 +10,7 @@ import {
   Image as PictureIcon,
   Images,
   Library,
+  ListChecks,
   LockKeyhole,
   EllipsisVertical,
   PanelsTopLeft,
@@ -46,7 +47,7 @@ import {
   useProductionMode,
 } from "@/lib/use-production-mode";
 
-type View = "home" | "create" | "library" | "player" | "media" | "scene";
+type View = "home" | "create" | "library" | "queue" | "player" | "media" | "scene";
 type CreationType = "picture" | "video";
 type MediaType = CreationType | "scene";
 type MediaStatus = "submitted" | "pending" | "complete" | "failed";
@@ -106,6 +107,23 @@ type PublicMedia = {
   errorMessage: string | null;
   createdAt: string;
   completedAt: string | null;
+};
+
+type QueueProcess = {
+  id: string;
+  kind: "video_generation" | "picture_generation" | "last_frame" | "scene_export";
+  title: string;
+  detail: string;
+  status: "queued" | "running" | "complete" | "failed";
+  progress: number;
+  estimatedSeconds: number;
+  remainingSeconds: number;
+  cancelable: boolean;
+  mediaId: string | null;
+  sceneId: string | null;
+  errorMessage: string | null;
+  createdAt: string;
+  updatedAt: string;
 };
 
 function modelName(media: PublicMedia) {
@@ -225,7 +243,7 @@ function BottomNavigation() {
     { label: "Home", href: "/experiments/ai-video", icon: House },
     { label: "Library", href: "/experiments/ai-video/library", icon: Library },
     { label: "Create", href: "/experiments/ai-video/create", icon: Plus, primary: true },
-    { label: "Boards", icon: PanelsTopLeft, placeholder: true },
+    { label: "Queue", href: "/experiments/ai-video/queue", icon: ListChecks },
     { label: "Settings", icon: Settings2, placeholder: true },
   ];
   return (
@@ -1547,6 +1565,190 @@ function LibraryView() {
   );
 }
 
+function QueueView() {
+  const authorizedFetch = useAuthorizedFetch();
+  const [processes, setProcesses] = useState<QueueProcess[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [cancelling, setCancelling] = useState<string | null>(null);
+
+  const load = useCallback(async () => {
+    const response = await authorizedFetch("/api/experiments/ai-video/queue");
+    const data = await readApiResponse<{
+      processes?: QueueProcess[];
+      error?: string;
+    }>(response, "Queue unavailable");
+    if (!response.ok || !data.processes) {
+      throw new Error(data.error || "Queue unavailable.");
+    }
+    setProcesses(data.processes);
+    setLoading(false);
+    setError("");
+    return data.processes.some(process =>
+      process.status === "queued" || process.status === "running"
+    );
+  }, [authorizedFetch]);
+
+  useEffect(() => {
+    let active = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const hasActive = await load();
+        if (active && hasActive) timer = window.setTimeout(poll, 3_000);
+      } catch (loadError) {
+        if (active) {
+          setLoading(false);
+          setError(loadError instanceof Error ? loadError.message : "Queue unavailable.");
+        }
+      }
+    };
+    void poll();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [load]);
+
+  async function cancelProcess(process: QueueProcess) {
+    if (!window.confirm(`Cancel "${process.title}"?`)) return;
+    setCancelling(process.id);
+    setError("");
+    try {
+      const response = await authorizedFetch("/api/experiments/ai-video/queue/cancel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: process.id, kind: process.kind }),
+      });
+      const data = await readApiResponse<{ cancelled?: boolean; error?: string }>(
+        response,
+        "Cancellation failed",
+      );
+      if (!response.ok || !data.cancelled) {
+        throw new Error(data.error || "Cancellation failed.");
+      }
+      await load();
+    } catch (cancelError) {
+      setError(cancelError instanceof Error ? cancelError.message : "Cancellation failed.");
+    } finally {
+      setCancelling(null);
+    }
+  }
+
+  function processCard(process: QueueProcess) {
+    const active = process.status === "queued" || process.status === "running";
+    const cancelled = process.errorMessage === "Cancelled by user.";
+    const destination = process.mediaId
+      ? `/experiments/ai-video/media/${process.mediaId}`
+      : process.sceneId
+        ? `/experiments/ai-video/scene/${process.sceneId}`
+        : null;
+    return (
+      <article className="aiv-queue-card" key={`${process.kind}-${process.id}`}>
+        <div className="aiv-queue-card-heading">
+          <span className={`aiv-queue-state ${process.status}`}>
+            {active ? <Clock3 aria-hidden="true" /> : cancelled || process.status === "failed" ? <X aria-hidden="true" /> : <Check aria-hidden="true" />}
+          </span>
+          <div>
+            <p className="aiv-kicker">{process.detail}</p>
+            <h2>{process.title}</h2>
+          </div>
+          <strong className={`aiv-queue-status ${process.status}`}>
+            {cancelled ? "Cancelled" : process.status}
+          </strong>
+        </div>
+        <div
+          className="aiv-progress-track"
+          role="progressbar"
+          aria-label={`${process.title} progress`}
+          aria-valuemin={0}
+          aria-valuemax={100}
+          aria-valuenow={process.progress}
+        >
+          <span style={{ width: `${process.progress}%` }} />
+        </div>
+        <div className="aiv-queue-meta">
+          <span><strong>{process.progress}%</strong></span>
+          <span>
+            {process.status === "queued"
+              ? `Waiting to start · ${formatEstimate(process.estimatedSeconds)} estimate`
+              : process.status === "running"
+                ? `${formatEstimate(process.remainingSeconds)} remaining · ${formatEstimate(process.estimatedSeconds)} estimate`
+                : cancelled
+                  ? "Stopped"
+                  : process.status === "complete"
+                    ? "Complete"
+                    : process.errorMessage || "Stopped with an error"}
+          </span>
+        </div>
+        <div className="aiv-queue-actions">
+          {destination && <Link href={destination}>Open</Link>}
+          {process.cancelable && (
+            <button
+              type="button"
+              onClick={() => cancelProcess(process)}
+              disabled={cancelling === process.id}
+            >
+              <X aria-hidden="true" />
+              {cancelling === process.id ? "Cancelling..." : "Cancel"}
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  const active = processes.filter(process =>
+    process.status === "queued" || process.status === "running"
+  );
+  const history = processes.filter(process =>
+    process.status === "complete" || process.status === "failed"
+  );
+
+  return (
+    <main className="aiv-page">
+      <ExperimentHeader />
+      <section className="aiv-library aiv-queue">
+        <div className="aiv-section-title">
+          <div>
+            <p className="aiv-kicker">PROCESSING</p>
+            <h1>Queue</h1>
+            <p>Generation, final-frame, and export work across your private media.</p>
+          </div>
+        </div>
+        {error && <p className="aiv-form-error">{error}</p>}
+        {loading ? (
+          <div className="aiv-empty">Loading your queue...</div>
+        ) : (
+          <>
+            <section className="aiv-queue-section">
+              <div className="aiv-queue-section-title">
+                <h2>Active</h2><span>{active.length}</span>
+              </div>
+              {active.length ? (
+                <div className="aiv-queue-list">{active.map(processCard)}</div>
+              ) : (
+                <div className="aiv-empty"><Check aria-hidden="true" /><strong>Nothing is waiting.</strong><span>New processes will appear here immediately.</span></div>
+              )}
+            </section>
+            <section className="aiv-queue-section">
+              <div className="aiv-queue-section-title">
+                <h2>All processes</h2><span>{history.length}</span>
+              </div>
+              {history.length ? (
+                <div className="aiv-queue-list">{history.map(processCard)}</div>
+              ) : (
+                <div className="aiv-empty">No completed processes yet.</div>
+              )}
+            </section>
+          </>
+        )}
+      </section>
+      <BottomNavigation />
+    </main>
+  );
+}
+
 function MediaView({
   mediaId,
   initialMedia = null,
@@ -2244,6 +2446,7 @@ function ConfiguredAiVideoApp({ view, jobId }: { view: View; jobId?: string }) {
   if (!isSignedIn) return <SignedOutGate />;
   if (view === "create") return <CreateView />;
   if (view === "library") return <LibraryView />;
+  if (view === "queue") return <QueueView />;
   if ((view === "player" || view === "media") && jobId) return <PlayerView jobId={jobId} />;
   if (view === "scene" && jobId) return <EditableSceneView sceneId={jobId} />;
   return <HomeView />;

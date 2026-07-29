@@ -178,6 +178,16 @@ def api():
         except Exception as error:
             raise HTTPException(500, str(error))
 
+    @web.post("/cancel/{call_id}")
+    async def cancel(call_id: str):
+        if pathlib.Path(call_id).name != call_id:
+            raise HTTPException(400, "Invalid function call.")
+        try:
+            await modal.FunctionCall.from_id(call_id).cancel.aio()
+            return {"status": "cancelled"}
+        except Exception as error:
+            raise HTTPException(500, str(error))
+
     @web.get("/output/{item}")
     async def output(item: str):
         if pathlib.Path(item).name != item:

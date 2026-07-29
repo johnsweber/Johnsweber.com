@@ -1,5 +1,6 @@
 import {
   ensureAiVideoSchema,
+  completePendingAiVideoMedia,
   getAiVideoMedia,
   getAiVideoMediaItem,
   insertAiVideoMedia,
@@ -96,13 +97,11 @@ export async function POST(request: Request) {
       );
       const objectKey = copied.contentKey;
       const completedAt = new Date().toISOString();
-      await updateAiVideoMedia(mediaId, user.id, {
-        status: "complete",
+      await completePendingAiVideoMedia(mediaId, user.id, {
         thumbnail_object_key: objectKey,
         content_object_key: objectKey,
         content_mime_type: copied.contentType,
         completed_at: completedAt,
-        error_message: null,
       });
       const complete = await getAiVideoMediaItem(mediaId, user.id);
       return Response.json(
@@ -140,6 +139,10 @@ export async function POST(request: Request) {
     if (!generated.ok || !result.image?.imageUrl) {
       throw new Error(result.error || "The local GPU did not return a picture.");
     }
+    const beforeDownload = await getAiVideoMediaItem(mediaId, user.id);
+    if (beforeDownload?.error_message === "Cancelled by user.") {
+      return Response.json({ error: "Cancelled by user.", mediaId }, { status: 409 });
+    }
 
     const imageResponse = await fetch(result.image.imageUrl, {
       signal: AbortSignal.timeout(30_000),
@@ -164,14 +167,16 @@ export async function POST(request: Request) {
     });
 
     const completedAt = new Date().toISOString();
-    await updateAiVideoMedia(mediaId, user.id, {
-      status: "complete",
+    const completed = await completePendingAiVideoMedia(mediaId, user.id, {
       thumbnail_object_key: objectKey,
       content_object_key: objectKey,
       content_mime_type: contentType,
       completed_at: completedAt,
-      error_message: null,
     });
+    if (!completed) {
+      await (await getAiVideoMedia()).delete(objectKey);
+      return Response.json({ error: "Cancelled by user.", mediaId }, { status: 409 });
+    }
     const complete = await getAiVideoMediaItem(mediaId, user.id);
     return Response.json(
       { media: complete ? publicAiVideoMedia(complete) : null },

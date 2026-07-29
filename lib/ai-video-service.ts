@@ -144,6 +144,13 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       download_path?: string;
     };
     if (result.status !== "complete" || !result.download_path) return job;
+    const latestJob = await getAiVideoJob(job.id, job.user_id);
+    if (
+      latestJob?.status === "failed" &&
+      latestJob.error_message === "Cancelled by user."
+    ) {
+      return latestJob;
+    }
 
     const videoResponse = await fetch(`${endpoint}${result.download_path}`, {
       headers,

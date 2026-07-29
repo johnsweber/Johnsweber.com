@@ -95,6 +95,14 @@ AI Video experiment (login required):
   the user-owned media row, linked video job, and associated private R2 objects.
   Scene cards derive their displayed status from their member clips, so a scene
   remains Pending while any included video is Submitted or Pending.
+- `/experiments/ai-video/queue` is the authenticated processing dashboard for
+  video and picture generation, final-frame extraction, and scene exports. It
+  separates active work from process history and shows status, progress,
+  estimates, remaining time, and owned-item links. Active entries can be
+  cancelled; Modal-backed calls are cancelled remotely before their D1 media,
+  job, and task records are finalized as stopped. Local picture cancellation
+  stops result ingestion even if the already-running local GPU request cannot
+  be interrupted.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
   pending state. Pending videos show their saved reference/thumbnail as a
   full preview with live generation percentage and estimated time, then
@@ -118,7 +126,7 @@ AI Video experiment (login required):
   FFmpeg merge that creates a new private video library item, then automatically
   opens its media view once the preview is ready.
 - `/experiments/ai-video/video/:id` — private video player.
-- Bottom navigation provides Home, Create, Library, and placeholders.
+- Bottom navigation provides Home, Library, Create, Queue, and Settings.
 
 AI Video APIs:
 
@@ -134,6 +142,8 @@ AI Video APIs:
 - `GET /api/experiments/ai-video/media/:id/content`
 - `GET /api/experiments/ai-video/media/:id/thumbnail`
 - `POST /api/experiments/ai-video/media/:id/last-frame`
+- `GET /api/experiments/ai-video/queue`
+- `POST /api/experiments/ai-video/queue/cancel`
 - `GET /api/experiments/ai-video/scenes/:id`
 - `PATCH /api/experiments/ai-video/scenes/:id`
 - `POST /api/experiments/ai-video/scenes/:id/export`

@@ -55,6 +55,13 @@ export async function refreshProcessingTask(task: AiVideoProcessingTask) {
       duration_seconds?: number;
     };
     if (result.status !== "complete") return task;
+    const latestTask = await getProcessingTask(task.id);
+    if (
+      latestTask?.status === "failed" &&
+      latestTask.error_message === "Cancelled by user."
+    ) {
+      return latestTask;
+    }
     if (task.task_type === "last_frame" && task.output_media_id && result.last_frame_path) {
       const frame = await fetch(`${endpoint}${result.last_frame_path}`, { headers, signal: AbortSignal.timeout(30_000) });
       if (!frame.ok || !frame.body) throw new Error("Last frame could not be downloaded.");

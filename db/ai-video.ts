@@ -561,6 +561,40 @@ export async function updateAiVideoMedia(
     .run();
 }
 
+export async function completePendingAiVideoMedia(
+  id: string,
+  userId: string,
+  updates: {
+    thumbnail_object_key: string;
+    content_object_key: string;
+    content_mime_type: string;
+    completed_at: string;
+  },
+) {
+  const result = await (await getAiVideoDb()).prepare(`
+    UPDATE ai_video_media
+    SET status = 'complete',
+        thumbnail_object_key = ?,
+        content_object_key = ?,
+        content_mime_type = ?,
+        completed_at = ?,
+        error_message = NULL,
+        updated_at = ?
+    WHERE id = ?
+      AND user_id = ?
+      AND status IN ('submitted', 'pending')
+  `).bind(
+    updates.thumbnail_object_key,
+    updates.content_object_key,
+    updates.content_mime_type,
+    updates.completed_at,
+    new Date().toISOString(),
+    id,
+    userId,
+  ).run();
+  return Number(result.meta.changes || 0) > 0;
+}
+
 export async function getSceneForMedia(mediaId: string, userId: string) {
   return (await getAiVideoDb()).prepare(`
     SELECT s.* FROM ai_video_scenes s
@@ -658,6 +692,15 @@ export async function getProcessingTask(id: string, userId?: string) {
   return userId
     ? db.prepare("SELECT * FROM ai_video_processing_tasks WHERE id=? AND user_id=?").bind(id,userId).first<AiVideoProcessingTask>()
     : db.prepare("SELECT * FROM ai_video_processing_tasks WHERE id=?").bind(id).first<AiVideoProcessingTask>();
+}
+
+export async function listProcessingTasks(userId: string) {
+  return (await getAiVideoDb()).prepare(`
+    SELECT * FROM ai_video_processing_tasks
+    WHERE user_id = ?
+    ORDER BY created_at DESC
+    LIMIT 100
+  `).bind(userId).all<AiVideoProcessingTask>().then(result => result.results);
 }
 
 export async function getPendingTaskForMedia(mediaId: string, type: AiVideoProcessingTask["task_type"]) {
