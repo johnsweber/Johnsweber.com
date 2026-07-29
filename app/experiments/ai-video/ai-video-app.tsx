@@ -366,7 +366,9 @@ function ScannableVideo({
       if (!Number.isFinite(measuredDuration) || measuredDuration <= 0) {
         throw new Error("This video does not expose a scannable duration.");
       }
-      const count = Math.min(16, Math.max(8, Math.ceil(measuredDuration / 2)));
+      // Roughly one preview every three seconds: 30s produces 10 frames.
+      // Keep short clips useful without making long clips expensive to scan.
+      const count = Math.min(12, Math.max(4, Math.ceil(measuredDuration / 3)));
       const width = 240;
       const height = Math.max(90, Math.round(width * (sampler.videoHeight / sampler.videoWidth)));
       const canvas = document.createElement("canvas");
