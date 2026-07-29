@@ -94,6 +94,11 @@ Video models are declared in `lib/ai-video-models.ts`.
   - 480p (`832x480`) or 720p (`1280x720`).
   - Approximately 5 or 10 seconds at 16 fps.
   - Runtime URL: `WAN22_MODAL_URL`.
+  - Current Modal app/function: `video-models` / `wan_api`.
+  - Current base route:
+    `https://johnsweber--video-models-wan-api.modal.run`.
+  - API routes below that base remain `/generate`, `/result/{call_id}`, and
+    `/video/{output_id}`.
 - LTX 2.3
   - Text-to-video with synchronized generated audio.
   - `768x512` or `1280x768`.
