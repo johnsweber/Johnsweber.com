@@ -2143,7 +2143,7 @@ body.menu-open { overflow: hidden; }
 .aiv-scene-strip button.aiv-scene-add:hover, .aiv-scene-strip button.aiv-scene-add:focus-visible { border-color: #72a8ff; color: white; background: rgba(54,126,255,.12); }
 .aiv-scene-stage { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #000; }
 .aiv-scene-video { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; background: #000; }
-.aiv-scene-video.active { z-index: 2; opacity: 1; pointer-events: auto; }
+.aiv-scene-video.active { z-index: 10; opacity: 1; pointer-events: auto; }
 .aiv-scene-stage > .aiv-player-message { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; text-align: center; background: #0d0c11; }
 .aiv-scene-timeline-wrap { margin: .75rem .25rem 1rem; }
 .aiv-scene-timeline { position: relative; height: 86px; display: flex; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: #16141b; cursor: crosshair; touch-action: none; user-select: none; outline: none; }
