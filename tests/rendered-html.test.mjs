@@ -410,7 +410,11 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(database, /AS effective_status/);
   assert.match(database, /clip\.status IN \('submitted', 'pending'\)/);
   assert.match(database, /last_frame_object_key/);
-  assert.match(database, /sourceMedia\.thumbnail_object_key \|\| sourceMedia\.last_frame_object_key/);
+  assert.match(database, /copyAiVideoSceneThumbnail/);
+  assert.match(database, /\/scenes\/\$\{sceneId\}\/thumbnail/);
+  assert.match(database, /copiedFromMediaId/);
+  assert.match(database, /listSceneThumbnailsNeedingCopy/);
+  assert.match(sceneRoute, /copyAiVideoSceneThumbnail/);
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);

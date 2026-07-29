@@ -363,6 +363,10 @@ Owned only by AI Video:
 - `ai_video_jobs` — configuration, provider/model, progress, Modal call/result
   references, private object keys, error state, and timestamps for videos.
 - `ai_video_scenes` — user-owned scene metadata and its library media row.
+  Each scene owns an R2 copy of its first clip thumbnail under the scene
+  namespace; it never aliases the original video's thumbnail object. Reordering
+  a scene refreshes that copy, and the scheduled reconciler upgrades older
+  aliased scene thumbnails in bounded batches.
 - `ai_video_scene_items` — ordered video membership for a scene.
 - `ai_video_processing_tasks` — pending/progress/error state and short-lived
   source authorization for last-frame extraction and scene export.

@@ -753,6 +753,31 @@ export async function getSceneForMedia(mediaId: string, userId: string) {
   `).bind(mediaId, userId).first<AiVideoScene>();
 }
 
+export async function copyAiVideoSceneThumbnail(
+  sceneId: string,
+  userId: string,
+  sourceMedia: AiVideoMedia,
+) {
+  const sourceKey =
+    sourceMedia.thumbnail_object_key || sourceMedia.last_frame_object_key;
+  if (!sourceKey || sourceKey.startsWith("demo:")) return null;
+
+  const bucket = await getAiVideoMedia();
+  const source = await bucket.get(sourceKey);
+  if (!source?.body) return null;
+
+  const destinationKey =
+    `experiments/ai-video/users/${userId}/scenes/${sceneId}/thumbnail`;
+  await bucket.put(destinationKey, source.body, {
+    httpMetadata: source.httpMetadata,
+    customMetadata: {
+      sceneId,
+      copiedFromMediaId: sourceMedia.id,
+    },
+  });
+  return destinationKey;
+}
+
 export async function createOrAppendScene(userId: string, sourceMedia: AiVideoMedia, newMediaId: string, requestedSceneId?: string) {
   const db = await getAiVideoDb();
   const now = new Date().toISOString();
@@ -763,12 +788,17 @@ export async function createOrAppendScene(userId: string, sourceMedia: AiVideoMe
     const sceneId = crypto.randomUUID();
     const sceneMediaId = crypto.randomUUID();
     const title = `Scene — ${sourceMedia.prompt.slice(0, 64)}`;
+    const sceneThumbnailKey = await copyAiVideoSceneThumbnail(
+      sceneId,
+      userId,
+      sourceMedia,
+    );
     const sceneMedia: AiVideoMedia = {
       id: sceneMediaId, user_id: userId, media_type: "scene", status: "complete",
       model_key: "scene", prompt: title, negative_prompt: null, quality: sourceMedia.quality,
       width: sourceMedia.width, height: sourceMedia.height, duration_seconds: sourceMedia.duration_seconds,
       fps: sourceMedia.fps, seed: sourceMedia.seed, job_id: null,
-      thumbnail_object_key: sourceMedia.thumbnail_object_key || sourceMedia.last_frame_object_key,
+      thumbnail_object_key: sceneThumbnailKey,
       last_frame_object_key: null, content_object_key: null, content_mime_type: null,
       error_message: null, created_at: now, updated_at: now, completed_at: now,
     };
@@ -858,6 +888,38 @@ export async function replaceAiVideoSceneItems(
       "UPDATE ai_video_scenes SET updated_at = ? WHERE id = ? AND user_id = ?",
     ).bind(now, sceneId, userId),
   ]);
+}
+
+export async function listSceneThumbnailsNeedingCopy(limit = 10) {
+  const rows = await (await getAiVideoDb()).prepare(`
+    SELECT
+      s.id AS scene_id,
+      s.media_id AS scene_media_id,
+      clip.*
+    FROM ai_video_scenes s
+    JOIN ai_video_media scene_media
+      ON scene_media.id = s.media_id AND scene_media.user_id = s.user_id
+    JOIN ai_video_scene_items first_item
+      ON first_item.scene_id = s.id
+      AND first_item.user_id = s.user_id
+      AND first_item.position = (
+        SELECT MIN(position)
+        FROM ai_video_scene_items
+        WHERE scene_id = s.id AND user_id = s.user_id
+      )
+    JOIN ai_video_media clip
+      ON clip.id = first_item.media_id AND clip.user_id = s.user_id
+    WHERE scene_media.thumbnail_object_key IS NOT NULL
+      AND scene_media.thumbnail_object_key !=
+        'experiments/ai-video/users/' || s.user_id ||
+        '/scenes/' || s.id || '/thumbnail'
+    ORDER BY s.updated_at ASC
+    LIMIT ?
+  `).bind(limit).all<AiVideoMedia & {
+    scene_id: string;
+    scene_media_id: string;
+  }>();
+  return rows.results;
 }
 
 export async function insertProcessingTask(task: AiVideoProcessingTask) {

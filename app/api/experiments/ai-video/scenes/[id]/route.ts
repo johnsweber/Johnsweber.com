@@ -1,4 +1,5 @@
 import {
+  copyAiVideoSceneThumbnail,
   ensureAiVideoSchema,
   getAiVideoMediaItem,
   getAiVideoScene,
@@ -72,6 +73,17 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
     }
 
     await replaceAiVideoSceneItems(result.scene.id, user.id, mediaIds);
+    const firstItem = items[0];
+    if (firstItem) {
+      const sceneThumbnailKey = await copyAiVideoSceneThumbnail(
+        result.scene.id,
+        user.id,
+        firstItem,
+      );
+      await updateAiVideoMedia(result.scene.media_id, user.id, {
+        thumbnail_object_key: sceneThumbnailKey,
+      });
+    }
     const duration = items.reduce((sum, item) => sum + (item?.duration_seconds || 0), 0);
     await updateAiVideoMedia(result.scene.media_id, user.id, {
       duration_seconds: duration,

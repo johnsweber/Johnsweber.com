@@ -1,11 +1,13 @@
 import {
   acquireAiVideoReconcilerLease,
+  copyAiVideoSceneThumbnail,
   ensureAiVideoSchema,
   finishAiVideoReconcilerRun,
   hasActiveGpuWorkForModel,
   listActiveAiVideoJobs,
   listActiveProcessingTasks,
   listExpiredFailedAiVideoMedia,
+  listSceneThumbnailsNeedingCopy,
   listWaitingGpuShutdownMedia,
   updateAiVideoMedia,
 } from "@/db/ai-video";
@@ -48,6 +50,30 @@ async function settleGpuShutdownRequests(errors: string[]) {
         error instanceof Error
           ? `GPU shutdown boundary (${modelKey}): ${error.message}`
           : `GPU shutdown boundary (${modelKey}) failed.`,
+      );
+    }
+  }
+}
+
+async function backfillSceneThumbnails(errors: string[]) {
+  const scenes = await listSceneThumbnailsNeedingCopy();
+  const results = await Promise.allSettled(scenes.map(async scene => {
+    const key = await copyAiVideoSceneThumbnail(
+      scene.scene_id,
+      scene.user_id,
+      scene,
+    );
+    if (!key) throw new Error(`Source thumbnail unavailable for scene ${scene.scene_id}.`);
+    await updateAiVideoMedia(scene.scene_media_id, scene.user_id, {
+      thumbnail_object_key: key,
+    });
+  }));
+  for (const result of results) {
+    if (result.status === "rejected") {
+      errors.push(
+        result.reason instanceof Error
+          ? `Scene thumbnail copy: ${result.reason.message}`
+          : "Scene thumbnail copy failed.",
       );
     }
   }
@@ -103,6 +129,7 @@ export async function reconcileAiVideoWork(
     }
 
     await settleGpuShutdownRequests(errors);
+    await backfillSceneThumbnails(errors);
 
     const expiredMedia = await listExpiredFailedAiVideoMedia(
       failedMediaCleanupCutoff(now.getTime()),
