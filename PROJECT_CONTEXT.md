@@ -109,9 +109,14 @@ AI Video experiment (login required):
   Mouse, touch/drag, and keyboard movement show a floating preview and seek the
   private video without creating permanent thumbnail objects.
 - `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
-  play in creation order and Export queues a CPU-only FFmpeg merge that creates
-  a new private video library item. The scene polls the export and automatically
-  opens the merged video's media view once its preview is ready.
+  play in creation order. The player downloads every completed private clip
+  before playback and keeps each video element preloaded for seamless
+  transitions. A plus tile at the end of the timeline opens completed videos
+  from the user's library; additions remain a draft until **Save scene**
+  replaces the ordered D1 scene membership. Export is unavailable while the
+  draft is unsaved or a member video is pending. Export queues a CPU-only
+  FFmpeg merge that creates a new private video library item, then automatically
+  opens its media view once the preview is ready.
 - `/experiments/ai-video/video/:id` — private video player.
 - Bottom navigation provides Home, Create, Library, and placeholders.
 
@@ -130,6 +135,7 @@ AI Video APIs:
 - `GET /api/experiments/ai-video/media/:id/thumbnail`
 - `POST /api/experiments/ai-video/media/:id/last-frame`
 - `GET /api/experiments/ai-video/scenes/:id`
+- `PATCH /api/experiments/ai-video/scenes/:id`
 - `POST /api/experiments/ai-video/scenes/:id/export`
 - `GET /api/experiments/ai-video/processing/:taskId/source/:mediaId`
 

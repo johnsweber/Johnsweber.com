@@ -271,6 +271,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     new URL("../app/api/experiments/ai-video/scenes/[id]/export/route.ts", import.meta.url),
     "utf8",
   );
+  const sceneRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/scenes/[id]/route.ts", import.meta.url),
+    "utf8",
+  );
   const browserFrameRoute = await readFile(
     new URL("../app/api/experiments/ai-video/media/[id]/last-frame/route.ts", import.meta.url),
     "utf8",
@@ -289,12 +293,18 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Preparing the last frame on the server/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
+  assert.match(app, /Add from library/);
+  assert.match(app, /Save scene/);
+  assert.match(app, /preload="auto"/);
+  assert.match(app, /Promise\.all\(playable\.map/);
+  assert.match(app, /mediaIds: items\.map/);
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
   assert.match(app, /Opening the merged video/);
   assert.match(app, /Your preview is in motion/);
   assert.match(app, /aiv-generation-reference/);
   assert.match(app, /job\?\.progress \|\| 4/);
   assert.match(database, /ai_video_scene_items/);
+  assert.match(database, /replaceAiVideoSceneItems/);
   assert.match(database, /AS effective_status/);
   assert.match(database, /clip\.status IN \('submitted', 'pending'\)/);
   assert.match(database, /last_frame_object_key/);
@@ -311,5 +321,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.doesNotMatch(browserFrameRoute, /request\.formData/);
   assert.match(modal, /volume\.reload\(\)/);
   assert.match(modal, /"-update", "1"/);
+  assert.match(sceneRoute, /export async function PATCH/);
+  assert.match(sceneRoute, /replaceAiVideoSceneItems/);
+  assert.match(exportRoute, /Wait for every scene video to finish/);
   assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
 });

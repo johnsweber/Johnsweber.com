@@ -15,6 +15,7 @@ import {
   PanelsTopLeft,
   Play,
   Plus,
+  Save,
   Settings2,
   Trash2,
   Upload,
@@ -1858,7 +1859,7 @@ function SceneView({ sceneId }: { sceneId: string }) {
               <Clock3 aria-hidden="true" /><div><strong>Export in progress · {task.progress}%</strong><span>The CPU service is joining and encoding the scene.</span></div>
               <div className="aiv-progress-track"><span style={{ width: `${task.progress}%` }} /></div>
             </div>
-          ) : task?.status === "complete" && task.outputMediaId ? (
+          ) : observedExportPending.current && task?.status === "complete" && task.outputMediaId ? (
             <div className="aiv-export-progress">
               <Play aria-hidden="true" /><div><strong>Preview ready</strong><span>Opening the merged video…</span></div>
             </div>
@@ -1866,6 +1867,363 @@ function SceneView({ sceneId }: { sceneId: string }) {
             <div className="aiv-actions">
               <button type="button" className="aiv-action-button" onClick={exportScene} disabled={exporting}>
                 <Download aria-hidden="true" /> {exporting ? "Submitting…" : "Export scene"}
+              </button>
+            </div>
+          )}
+          {error && <p className="aiv-form-error">{error}</p>}
+        </section>
+      )}
+    </main>
+  );
+}
+
+function EditableSceneView({ sceneId }: { sceneId: string }) {
+  const authorizedFetch = useAuthorizedFetch();
+  const [title, setTitle] = useState("Scene");
+  const [items, setItems] = useState<PublicMedia[]>([]);
+  const [index, setIndex] = useState(0);
+  const [task, setTask] = useState<PublicTask | null>(null);
+  const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [dirty, setDirty] = useState(false);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [pickerLoading, setPickerLoading] = useState(false);
+  const [libraryVideos, setLibraryVideos] = useState<PublicMedia[]>([]);
+  const [sources, setSources] = useState<Record<string, string>>({});
+  const dirtyRef = useRef(false);
+  const playbackRefs = useRef(new Map<string, HTMLVideoElement>());
+  const savedDurations = useRef(new Map<string, number>());
+  const observedExportPending = useRef(false);
+
+  const captureDuration = useCallback((mediaId: string, duration: number) => {
+    setItems(current => current.map(item =>
+      item.id === mediaId && item.durationSeconds !== duration
+        ? { ...item, durationSeconds: duration }
+        : item
+    ));
+    if (savedDurations.current.get(mediaId) === duration) return;
+    savedDurations.current.set(mediaId, duration);
+    void authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ durationSeconds: duration }),
+    });
+  }, [authorizedFetch]);
+
+  const load = useCallback(async () => {
+    const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}`);
+    const data = await response.json() as {
+      scene?: { title: string };
+      items?: PublicMedia[];
+      exportTask?: PublicTask | null;
+      error?: string;
+    };
+    if (!response.ok || !data.scene) throw new Error(data.error || "Scene unavailable.");
+    const serverItems = data.items || [];
+    setTitle(data.scene.title);
+    setItems(current => {
+      if (!dirtyRef.current) return serverItems;
+      const refreshed = new Map(serverItems.map(item => [item.id, item]));
+      return current.map(item => refreshed.get(item.id) || item);
+    });
+    if (data.exportTask && isPending(data.exportTask.status)) {
+      observedExportPending.current = true;
+    }
+    setTask(data.exportTask || null);
+    return {
+      task: data.exportTask || null,
+      hasPending: serverItems.some(item => isPending(item.status)),
+    };
+  }, [authorizedFetch, sceneId]);
+
+  useEffect(() => {
+    let active = true;
+    let timer = 0;
+    const poll = async () => {
+      try {
+        const current = await load();
+        if (
+          active &&
+          (
+            current.hasPending ||
+            (current.task && isPending(current.task.status))
+          )
+        ) {
+          timer = window.setTimeout(poll, 3_000);
+        }
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Scene unavailable.");
+      }
+    };
+    void poll();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [load]);
+
+  useEffect(() => {
+    if (
+      observedExportPending.current &&
+      task?.status === "complete" &&
+      task.outputMediaId
+    ) {
+      window.location.assign(`/experiments/ai-video/media/${task.outputMediaId}`);
+    }
+  }, [task?.outputMediaId, task?.status]);
+
+  useEffect(() => {
+    let active = true;
+    const objectUrls: string[] = [];
+    const preload = async () => {
+      const playable = items.filter(item => item.status === "complete" && item.hasContent);
+      try {
+        const loaded = await Promise.all(playable.map(async item => {
+          const response = await authorizedFetch(`/api/experiments/ai-video/media/${item.id}/content`);
+          if (!response.ok) throw new Error("A scene video could not be preloaded.");
+          const objectUrl = URL.createObjectURL(await response.blob());
+          objectUrls.push(objectUrl);
+          return [item.id, objectUrl] as const;
+        }));
+        if (active) setSources(Object.fromEntries(loaded));
+      } catch (loadError) {
+        if (active) setError(loadError instanceof Error ? loadError.message : "Scene playback unavailable.");
+      }
+    };
+    void preload();
+    return () => {
+      active = false;
+      objectUrls.forEach(objectUrl => URL.revokeObjectURL(objectUrl));
+    };
+  }, [authorizedFetch, items]);
+
+  const hasPendingVideos = items.some(item => isPending(item.status));
+  const allVideosReady =
+    items.length >= 2 &&
+    items.every(item =>
+      item.status === "complete" &&
+      item.hasContent &&
+      Boolean(sources[item.id])
+    );
+
+  useEffect(() => {
+    if (!allVideosReady) return;
+    playbackRefs.current.forEach((video, mediaId) => {
+      if (items[index]?.id === mediaId) {
+        void video.play().catch(() => undefined);
+      } else {
+        video.pause();
+      }
+    });
+  }, [allVideosReady, index, items]);
+
+  function selectClip(itemIndex: number) {
+    const video = playbackRefs.current.get(items[itemIndex]?.id);
+    if (video) video.currentTime = 0;
+    setIndex(itemIndex);
+  }
+
+  async function openLibraryPicker() {
+    setPickerOpen(true);
+    if (libraryVideos.length) return;
+    setPickerLoading(true);
+    setError("");
+    try {
+      const response = await authorizedFetch("/api/experiments/ai-video/media?type=video");
+      const data = await response.json() as { media?: PublicMedia[]; error?: string };
+      if (!response.ok) throw new Error(data.error || "Library unavailable.");
+      setLibraryVideos((data.media || []).filter(item =>
+        item.status === "complete" && item.hasContent
+      ));
+    } catch (loadError) {
+      setError(loadError instanceof Error ? loadError.message : "Library unavailable.");
+    } finally {
+      setPickerLoading(false);
+    }
+  }
+
+  function addLibraryVideo(video: PublicMedia) {
+    if (items.some(item => item.id === video.id)) return;
+    dirtyRef.current = true;
+    setDirty(true);
+    setItems(current => [...current, video]);
+    setIndex(items.length);
+  }
+
+  async function saveScene() {
+    if (!dirty) return;
+    setSaving(true);
+    setError("");
+    try {
+      const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mediaIds: items.map(item => item.id) }),
+      });
+      const data = await response.json() as { items?: PublicMedia[]; error?: string };
+      if (!response.ok || !data.items) throw new Error(data.error || "Scene could not be saved.");
+      dirtyRef.current = false;
+      setDirty(false);
+      setItems(data.items);
+      setPickerOpen(false);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "Scene could not be saved.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function exportScene() {
+    observedExportPending.current = true;
+    setExporting(true);
+    setError("");
+    try {
+      const response = await authorizedFetch(`/api/experiments/ai-video/scenes/${sceneId}/export`, { method: "POST" });
+      const data = await response.json() as {
+        task?: PublicTask | null;
+        outputMediaId?: string;
+        error?: string;
+      };
+      if (!response.ok) throw new Error(data.error || "Export could not start.");
+      if (data.task) setTask(data.task);
+      else if (data.outputMediaId) {
+        window.location.href = `/experiments/ai-video/media/${data.outputMediaId}`;
+      }
+    } catch (exportError) {
+      setError(exportError instanceof Error ? exportError.message : "Export could not start.");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  const current = items[index];
+  return (
+    <main className="aiv-player-page">
+      <ExperimentHeader close />
+      {error && !current ? (
+        <section className="aiv-player-message"><strong>Scene unavailable</strong><span>{error}</span></section>
+      ) : !current ? (
+        <section className="aiv-player-message">Loading scene...</section>
+      ) : (
+        <section className="aiv-player">
+          <div className="aiv-video-stage aiv-scene-stage">
+            {allVideosReady ? items.map((item, itemIndex) => (
+              <video
+                key={item.id}
+                ref={video => {
+                  if (video) playbackRefs.current.set(item.id, video);
+                  else playbackRefs.current.delete(item.id);
+                }}
+                className={`aiv-scene-video ${itemIndex === index ? "active" : ""}`}
+                src={sources[item.id]}
+                controls={itemIndex === index}
+                playsInline
+                preload="auto"
+                onEnded={() => selectClip(itemIndex + 1 < items.length ? itemIndex + 1 : 0)}
+                onLoadedMetadata={(event) => {
+                  const duration = event.currentTarget.duration;
+                  if (Number.isFinite(duration) && duration > 0) {
+                    captureDuration(item.id, duration);
+                  }
+                }}
+              />
+            )) : (
+              <div className="aiv-player-message">
+                <Clock3 aria-hidden="true" />
+                <strong>{hasPendingVideos ? "Finishing the scene videos..." : "Preloading the complete scene..."}</strong>
+                <span>Playback begins when every clip is ready for a seamless transition.</span>
+              </div>
+            )}
+          </div>
+          <div className="aiv-player-info">
+            <div>
+              <p className="aiv-kicker">SCENE · CLIP {index + 1} OF {items.length}</p>
+              <h1>{title}</h1>
+              <p>{current.prompt}</p>
+            </div>
+            <span>{formatDuration(items.reduce((sum, item) => sum + (item.durationSeconds || 0), 0))} total</span>
+          </div>
+          <div className="aiv-scene-strip">
+            {items.map((item, itemIndex) => (
+              <button
+                type="button"
+                key={item.id}
+                className={itemIndex === index ? "selected" : ""}
+                onClick={() => selectClip(itemIndex)}
+              >
+                <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
+                {item.prompt}
+              </button>
+            ))}
+            <button type="button" className="aiv-scene-add" onClick={openLibraryPicker}>
+              <span><Plus aria-hidden="true" /></span>
+              Add from library
+            </button>
+          </div>
+          {pickerOpen && (
+            <section className="aiv-scene-picker" aria-label="Add videos from library">
+              <div className="aiv-scene-picker-heading">
+                <div><p className="aiv-kicker">ADD VIDEO</p><h2>Choose from your library</h2></div>
+                <button type="button" onClick={() => setPickerOpen(false)} aria-label="Close library picker">
+                  <X aria-hidden="true" />
+                </button>
+              </div>
+              {pickerLoading ? (
+                <p>Loading your videos...</p>
+              ) : libraryVideos.length ? (
+                <div className="aiv-scene-picker-grid">
+                  {libraryVideos.map(video => {
+                    const included = items.some(item => item.id === video.id);
+                    return (
+                      <button type="button" key={video.id} disabled={included} onClick={() => addLibraryVideo(video)}>
+                        <PrivateMediaAsset mediaId={video.id} mediaType="video" thumbnail>
+                          <span className="aiv-thumb-placeholder"><Video aria-hidden="true" /></span>
+                        </PrivateMediaAsset>
+                        <span>
+                          <strong>{video.prompt}</strong>
+                          <small>{included ? "Already in scene" : formatDuration(video.durationSeconds)}</small>
+                        </span>
+                        {included ? <Check aria-hidden="true" /> : <Plus aria-hidden="true" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <p>No completed library videos are available to add.</p>
+              )}
+            </section>
+          )}
+          <div className="aiv-actions aiv-scene-actions">
+            <button type="button" className="aiv-action-button secondary" onClick={saveScene} disabled={!dirty || saving}>
+              <Save aria-hidden="true" /> {saving ? "Saving..." : dirty ? "Save scene" : "Saved"}
+            </button>
+          </div>
+          {task && isPending(task.status) ? (
+            <div className="aiv-export-progress">
+              <Clock3 aria-hidden="true" />
+              <div><strong>Export in progress · {task.progress}%</strong><span>The CPU service is joining and encoding the scene.</span></div>
+              <div className="aiv-progress-track"><span style={{ width: `${task.progress}%` }} /></div>
+            </div>
+          ) : task?.status === "complete" && task.outputMediaId ? (
+            <div className="aiv-export-progress">
+              <Play aria-hidden="true" /><div><strong>Preview ready</strong><span>Opening the merged video...</span></div>
+            </div>
+          ) : (
+            <div className="aiv-actions">
+              <button
+                type="button"
+                className="aiv-action-button"
+                onClick={exportScene}
+                disabled={exporting || dirty || hasPendingVideos}
+              >
+                <Download aria-hidden="true" /> {
+                  hasPendingVideos
+                    ? "Waiting for videos"
+                    : dirty
+                      ? "Save before export"
+                      : exporting ? "Submitting..." : "Export scene"
+                }
               </button>
             </div>
           )}
@@ -1887,7 +2245,7 @@ function ConfiguredAiVideoApp({ view, jobId }: { view: View; jobId?: string }) {
   if (view === "create") return <CreateView />;
   if (view === "library") return <LibraryView />;
   if ((view === "player" || view === "media") && jobId) return <PlayerView jobId={jobId} />;
-  if (view === "scene" && jobId) return <SceneView sceneId={jobId} />;
+  if (view === "scene" && jobId) return <EditableSceneView sceneId={jobId} />;
   return <HomeView />;
 }
 

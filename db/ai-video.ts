@@ -612,6 +612,37 @@ export async function getAiVideoScene(id: string, userId: string) {
   return { scene, items };
 }
 
+export async function replaceAiVideoSceneItems(
+  sceneId: string,
+  userId: string,
+  mediaIds: string[],
+) {
+  const db = await getAiVideoDb();
+  const now = new Date().toISOString();
+  await db.batch([
+    db.prepare(
+      "DELETE FROM ai_video_scene_items WHERE scene_id = ? AND user_id = ?",
+    ).bind(sceneId, userId),
+    ...mediaIds.map((mediaId, position) =>
+      db.prepare(`
+        INSERT INTO ai_video_scene_items
+          (id, scene_id, user_id, media_id, position, created_at)
+        VALUES (?, ?, ?, ?, ?, ?)
+      `).bind(
+        crypto.randomUUID(),
+        sceneId,
+        userId,
+        mediaId,
+        position,
+        now,
+      ),
+    ),
+    db.prepare(
+      "UPDATE ai_video_scenes SET updated_at = ? WHERE id = ? AND user_id = ?",
+    ).bind(now, sceneId, userId),
+  ]);
+}
+
 export async function insertProcessingTask(task: AiVideoProcessingTask) {
   await (await getAiVideoDb()).prepare(`INSERT INTO ai_video_processing_tasks
     (id,user_id,task_type,status,progress,source_media_id,scene_id,output_media_id,modal_call_id,modal_result_path,access_token_hash,error_message,created_at,updated_at,completed_at)

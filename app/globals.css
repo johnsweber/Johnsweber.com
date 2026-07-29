@@ -2076,12 +2076,36 @@ body.menu-open { overflow: hidden; }
 .aiv-scene-strip { display: flex; gap: .7rem; overflow-x: auto; padding: .5rem .25rem 1rem; }
 .aiv-scene-strip button { min-width: 180px; max-width: 260px; color: #aaa5b8; background: rgba(255,255,255,.05); border: 1px solid rgba(255,255,255,.12); border-radius: 1rem; padding: .8rem; text-align: left; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .aiv-scene-strip button span { display: inline-grid; place-items: center; width: 1.65rem; height: 1.65rem; margin-right: .55rem; border-radius: 50%; background: rgba(255,255,255,.09); color: white; }
+.aiv-scene-strip button span svg { width: 14px; height: 14px; }
 .aiv-scene-strip button.selected { border-color: #72a8ff; background: rgba(54,126,255,.16); color: white; }
+.aiv-scene-strip button.aiv-scene-add { min-width: 190px; border-style: dashed; color: #cfc9dc; cursor: pointer; }
+.aiv-scene-strip button.aiv-scene-add:hover, .aiv-scene-strip button.aiv-scene-add:focus-visible { border-color: #72a8ff; color: white; background: rgba(54,126,255,.12); }
+.aiv-scene-stage { position: relative; }
+.aiv-scene-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; background: #000; }
+.aiv-scene-video.active { position: relative; opacity: 1; pointer-events: auto; }
+.aiv-scene-picker { margin: .25rem; padding: 1.1rem; border: 1px solid rgba(255,255,255,.14); border-radius: 1.1rem; color: white; background: #111016; }
+.aiv-scene-picker > p { color: #aaa5b8; }
+.aiv-scene-picker-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; margin-bottom: 1rem; }
+.aiv-scene-picker-heading h2 { margin: .2rem 0 0; font-size: 1.25rem; }
+.aiv-scene-picker-heading > button { width: 38px; height: 38px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.14); border-radius: 50%; color: white; background: rgba(255,255,255,.06); cursor: pointer; }
+.aiv-scene-picker-heading > button svg { width: 17px; }
+.aiv-scene-picker-grid { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: .7rem; max-height: 48vh; overflow-y: auto; }
+.aiv-scene-picker-grid > button { min-width: 0; padding: .55rem; display: grid; grid-template-columns: 74px minmax(0,1fr) auto; align-items: center; gap: .7rem; border: 1px solid rgba(255,255,255,.12); border-radius: .9rem; color: white; background: rgba(255,255,255,.05); text-align: left; cursor: pointer; }
+.aiv-scene-picker-grid > button:hover, .aiv-scene-picker-grid > button:focus-visible { border-color: #72a8ff; background: rgba(54,126,255,.12); }
+.aiv-scene-picker-grid > button:disabled { opacity: .48; cursor: default; }
+.aiv-scene-picker-grid > button > img, .aiv-scene-picker-grid > button > video, .aiv-scene-picker-grid > button > .aiv-thumb-placeholder { width: 74px; height: 48px; object-fit: cover; border-radius: .55rem; overflow: hidden; }
+.aiv-scene-picker-grid > button > span:not(.aiv-thumb-placeholder) { min-width: 0; display: flex; flex-direction: column; gap: .3rem; }
+.aiv-scene-picker-grid strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.aiv-scene-picker-grid small { color: #aaa5b8; }
+.aiv-scene-picker-grid > button > svg { width: 17px; color: #72a8ff; }
+.aiv-scene-actions { margin: .25rem; }
 .aiv-export-progress { margin: 1rem .25rem; padding: 1rem; border: 1px solid rgba(255,255,255,.12); background: rgba(255,255,255,.05); border-radius: 1rem; color: white; display: grid; grid-template-columns: auto 1fr; gap: .8rem; align-items: center; }
 .aiv-export-progress > svg { width: 22px; color: #72a8ff; }
 .aiv-export-progress div span { display: block; color: #aaa5b8; font-size: .78rem; }
 .aiv-export-progress .aiv-progress-track { grid-column: 1 / -1; width: 100%; margin: 0; }
 .aiv-action-button { display: inline-flex; align-items: center; gap: .55rem; border: 0; border-radius: 999px; padding: .9rem 1.2rem; background: #2768dc; color: white; font: inherit; font-weight: 700; cursor: pointer; }
+.aiv-action-button.secondary { border: 1px solid rgba(255,255,255,.18); background: rgba(255,255,255,.08); }
+.aiv-action-button:disabled { opacity: .48; cursor: default; }
 .aiv-action-button svg { width: 18px; }
 .aiv-player-page .aiv-progress-panel { color: white; }
 .aiv-player-page .aiv-progress-panel h1, .aiv-player-page .aiv-progress-meta strong { color: white; }
@@ -2094,6 +2118,7 @@ body.menu-open { overflow: hidden; }
   .aiv-preset-row { grid-template-columns: 1fr; }
   .aiv-setting-row { grid-template-columns: 1fr; }
   .aiv-generation-options { grid-template-columns: 1fr; }
+  .aiv-scene-picker-grid { grid-template-columns: 1fr; }
   .aiv-create-submit, .aiv-section-title, .aiv-player-info { align-items: stretch; flex-direction: column; }
   .aiv-create-submit button { justify-content: center; }
 }

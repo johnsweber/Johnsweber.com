@@ -14,6 +14,9 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
     await ensureAiVideoSchema();
     const result = await getAiVideoScene(id, user.id);
     if (!result || result.items.length < 2) return Response.json({ error: "A scene needs at least two clips." }, { status: 409 });
+    if (result.items.some(item => item.status !== "complete" || !item.content_object_key)) {
+      return Response.json({ error: "Wait for every scene video to finish before exporting." }, { status: 409 });
+    }
     const now = new Date().toISOString();
     const outputId = crypto.randomUUID();
     const duration = result.items.reduce((sum, item) => sum + (item.duration_seconds || 0), 0);
