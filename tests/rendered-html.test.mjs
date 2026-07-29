@@ -250,6 +250,9 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Export scene/);
   assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{task\.outputMediaId\}`\)/);
   assert.match(app, /Opening the merged video/);
+  assert.match(app, /Your preview is in motion/);
+  assert.match(app, /aiv-generation-reference/);
+  assert.match(app, /job\?\.progress \|\| 4/);
   assert.match(database, /ai_video_scene_items/);
   assert.match(database, /last_frame_object_key/);
   assert.match(processing, /scene_export/);

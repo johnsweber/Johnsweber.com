@@ -9,6 +9,7 @@ import {
 } from "@/db/ai-video";
 import { requireApiUser } from "@/lib/api-auth";
 import {
+  publicAiVideoJob,
   publicAiVideoMedia,
   refreshAiVideoMediaItem,
 } from "@/lib/ai-video-service";
@@ -29,7 +30,14 @@ export async function GET(
     }
     const refreshed = await refreshAiVideoMediaItem(media, new URL(request.url).origin);
     const scene = refreshed.media_type === "video" ? await getSceneForMedia(refreshed.id, user.id) : null;
-    return Response.json({ media: publicAiVideoMedia(refreshed), sceneId: scene?.id || null });
+    const job = refreshed.job_id
+      ? await getAiVideoJob(refreshed.job_id, user.id)
+      : null;
+    return Response.json({
+      media: publicAiVideoMedia(refreshed),
+      sceneId: scene?.id || null,
+      job: job ? publicAiVideoJob(job) : null,
+    });
   } catch (error) {
     if (error instanceof Response) return error;
     return Response.json({ error: "Unable to load this media." }, { status: 500 });

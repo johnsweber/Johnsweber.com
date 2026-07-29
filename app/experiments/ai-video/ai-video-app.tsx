@@ -1248,6 +1248,7 @@ function MediaView({
   const [media, setMedia] = useState<PublicMedia | null>(initialMedia);
   const [error, setError] = useState("");
   const [sceneId, setSceneId] = useState<string | null>(null);
+  const [job, setJob] = useState<PublicJob | null>(null);
   const [actualDuration, setActualDuration] = useState<number | null>(null);
   const savedDuration = useRef<number | null>(null);
 
@@ -1269,11 +1270,17 @@ function MediaView({
     const load = async () => {
       try {
         const response = await authorizedFetch(`/api/experiments/ai-video/media/${mediaId}`);
-        const data = (await response.json()) as { media?: PublicMedia; sceneId?: string | null; error?: string };
+        const data = (await response.json()) as {
+          media?: PublicMedia;
+          sceneId?: string | null;
+          job?: PublicJob | null;
+          error?: string;
+        };
         if (!response.ok || !data.media) throw new Error(data.error || "Media unavailable.");
         if (!active) return;
         setMedia(data.media);
         setSceneId(data.sceneId || null);
+        setJob(data.job || null);
         if (isPending(data.media.status)) timer = window.setTimeout(load, 3_000);
       } catch (loadError) {
         if (active) setError(loadError instanceof Error ? loadError.message : "Media unavailable.");
@@ -1290,6 +1297,46 @@ function MediaView({
         <section className="aiv-player-message"><strong>Media unavailable</strong><span>{error}</span><Link href="/experiments/ai-video/library">Return to library</Link></section>
       ) : !media ? (
         <section className="aiv-player-message">Loading private media…</section>
+      ) : isPending(media.status) && media.mediaType === "video" ? (
+        <section className="aiv-player aiv-generation-player">
+          <div className="aiv-generation-preview">
+            {media.hasThumbnail ? (
+              <PrivateMediaAsset mediaId={media.id} mediaType="picture" thumbnail className="aiv-generation-reference">
+                <div className="aiv-generation-placeholder"><Clock3 aria-hidden="true" /></div>
+              </PrivateMediaAsset>
+            ) : (
+              <div className="aiv-generation-placeholder"><Video aria-hidden="true" /></div>
+            )}
+            <div className="aiv-generation-overlay">
+              <span className="aiv-generation-status"><Clock3 aria-hidden="true" /> Generating video</span>
+              <div className="aiv-generation-copy">
+                <p className="aiv-kicker">{job?.status === "running" ? "IN PROGRESS" : "SUBMITTED"}</p>
+                <h1>Your preview is in motion.</h1>
+                <p>{job ? formatRemaining(job) : "Preparing the video generation service…"}</p>
+              </div>
+              <div className="aiv-generation-progress">
+                <div
+                  className="aiv-progress-track"
+                  role="progressbar"
+                  aria-label="Video generation progress"
+                  aria-valuemin={0}
+                  aria-valuemax={100}
+                  aria-valuenow={job?.progress || 4}
+                >
+                  <span style={{ width: `${job?.progress || 4}%` }} />
+                </div>
+                <div className="aiv-progress-meta">
+                  <strong>{job?.progress || 4}%</strong>
+                  <span>{modelName(media)} · {media.quality} · {media.durationSeconds}s</span>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div className="aiv-actions aiv-player-actions">
+            <Link href="/experiments/ai-video/library"><Library aria-hidden="true" /> Library</Link>
+            <Link className="secondary" href="/experiments/ai-video"><House aria-hidden="true" /> AI Video home</Link>
+          </div>
+        </section>
       ) : isPending(media.status) ? (
         <section className="aiv-progress-panel">
           <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>

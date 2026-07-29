@@ -94,7 +94,10 @@ AI Video experiment (login required):
   All, Picture, Video, and Scene filters. Each card has an actions menu; Delete removes
   the user-owned media row, linked video job, and associated private R2 objects.
 - `/experiments/ai-video/media/:id` — private picture or video viewer with a
-  pending state. Completed videos with a saved last frame offer **Extend video**.
+  pending state. Pending videos show their saved reference/thumbnail as a
+  full preview with live generation percentage and estimated time, then
+  transition automatically into the completed player. Completed videos with a
+  saved last frame offer **Extend video**.
   Completed pictures offer **Animate picture**, which opens Wan with that
   user-owned picture preloaded and previewed as its reference image.
   Video players read the file's actual metadata duration and persist it back to
