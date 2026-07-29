@@ -57,8 +57,10 @@ Public/general:
   circuit field. Its orbs respond continuously to pointer or phone tilt; hover
   and touch trigger a larger color bloom.
 - HTML images inherit a subtle hover lift, tilt, color-softening, and blurred
-  shadow treatment. The portrait and dog use opposing tilts with an additional
-  faint watercolor glow.
+  shadow treatment. A global client-side canvas sampler reads the average color
+  along each image edge and uses that four-color palette for a soft, page-scale
+  burst on pointer hover or touch. The portrait and dog use opposing tilts with
+  an additional faint watercolor glow.
 - `/hero-preview` — unlinked, no-index phone preview for the pointer/touch and
   device-orientation-responsive Logic Playground hero concept. It is a draft
   route and is not yet used by the production homepage.

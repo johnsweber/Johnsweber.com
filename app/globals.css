@@ -44,6 +44,31 @@ img:hover {
     contrast(1.015)
     drop-shadow(0 12px 18px rgba(24,93,216,.14));
 }
+.image-edge-burst {
+  position: fixed;
+  z-index: 1;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(.5) rotate(-5deg);
+  transform-origin: var(--image-burst-x) var(--image-burst-y);
+  background:
+    radial-gradient(circle 25vmax at var(--image-burst-x) var(--image-burst-y),var(--image-burst-a),transparent 68%),
+    radial-gradient(circle 20vmax at calc(var(--image-burst-x) + 17vw) calc(var(--image-burst-y) - 12vh),var(--image-burst-b),transparent 72%),
+    radial-gradient(circle 22vmax at calc(var(--image-burst-x) - 16vw) calc(var(--image-burst-y) + 16vh),var(--image-burst-c),transparent 72%),
+    radial-gradient(circle 18vmax at calc(var(--image-burst-x) + 8vw) calc(var(--image-burst-y) + 22vh),var(--image-burst-d),transparent 72%);
+  filter: blur(46px) saturate(1.22);
+  mix-blend-mode: multiply;
+  transition:
+    opacity .48s ease,
+    transform .95s cubic-bezier(.16,.84,.22,1),
+    background .35s ease;
+  will-change: opacity, transform;
+}
+.image-edge-burst[data-active="true"] {
+  opacity: .3;
+  transform: scale(1.06) rotate(3deg);
+}
 
 .nav {
   width: min(1480px, calc(100% - 48px));
@@ -1100,9 +1125,14 @@ body.menu-open { overflow: hidden; }
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   img,
+  .image-edge-burst,
   .portrait-card::after,
   .dog-card::after {
     transition: none;
+  }
+  .image-edge-burst[data-active="true"] {
+    opacity: .18;
+    transform: none;
   }
 }
 
