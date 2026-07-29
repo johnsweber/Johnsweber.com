@@ -2,6 +2,7 @@
 
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
+  AlertTriangle,
   ArrowLeft,
   Check,
   Clapperboard,
@@ -16,6 +17,7 @@ import {
   PanelsTopLeft,
   Play,
   Plus,
+  RefreshCw,
   Save,
   Settings2,
   Trash2,
@@ -626,11 +628,20 @@ function ScannableVideo({
   );
 }
 
-function PendingBadge({ status }: { status: MediaStatus }) {
+function PendingBadge({
+  status,
+  errorMessage,
+}: {
+  status: MediaStatus;
+  errorMessage?: string | null;
+}) {
+  const warning = isPending(status) && Boolean(errorMessage);
   return (
-    <span className={`aiv-status ${status}`}>
-      {isPending(status) && <Clock3 aria-hidden="true" />}
-      {status === "submitted" ? "Submitted" : status}
+    <span className={`aiv-status ${warning ? "warning" : status}`}>
+      {warning || status === "failed"
+        ? <AlertTriangle aria-hidden="true" />
+        : isPending(status) && <Clock3 aria-hidden="true" />}
+      {warning ? "Attention" : status === "submitted" ? "Submitted" : status}
     </span>
   );
 }
@@ -678,7 +689,7 @@ function MediaCard({
             {media.mediaType === "picture" ? <PictureIcon aria-hidden="true" /> : media.mediaType === "scene" ? <Clapperboard aria-hidden="true" /> : <Video aria-hidden="true" />}
           </span>
         )}
-        <PendingBadge status={media.status} />
+        <PendingBadge status={media.status} errorMessage={media.errorMessage} />
         {media.status === "complete" && media.mediaType === "video" && (
           <span className="aiv-play"><Play aria-hidden="true" /></span>
         )}
@@ -712,6 +723,12 @@ function MediaCard({
           {modelName(media)} · {media.mediaType === "video" ? `${formatDuration(media.durationSeconds)} · ` : ""}
           {media.quality}
         </span>
+        {media.errorMessage && (
+          <span className="aiv-card-error">
+            <AlertTriangle aria-hidden="true" />
+            {media.errorMessage}
+          </span>
+        )}
       </div>
     </article>
   );
@@ -857,10 +874,10 @@ function ProgressPanel({ initialJob, sceneId }: { initialJob: PublicJob; sceneId
   return (
     <section className="aiv-progress-panel">
       <span className={`aiv-progress-icon ${job.status}`}>
-        {job.status === "complete" ? <Check aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
+        {job.status === "complete" ? <Check aria-hidden="true" /> : job.status === "failed" ? <AlertTriangle aria-hidden="true" /> : <Clock3 aria-hidden="true" />}
       </span>
-      <p className="aiv-kicker">{job.status === "complete" ? "VIDEO READY" : "PENDING"}</p>
-      <h1>{job.status === "complete" ? "Your shot is ready." : "Your video was submitted."}</h1>
+      <p className="aiv-kicker">{job.status === "complete" ? "VIDEO READY" : job.status === "failed" ? "GENERATION STOPPED" : "PENDING"}</p>
+      <h1>{job.status === "complete" ? "Your shot is ready." : job.status === "failed" ? "The video could not be completed." : "Your video was submitted."}</h1>
       <p>{job.errorMessage || formatRemaining(job)}</p>
       <div
         className="aiv-progress-track"
@@ -879,6 +896,8 @@ function ProgressPanel({ initialJob, sceneId }: { initialJob: PublicJob; sceneId
       <div className="aiv-actions">
         {job.status === "complete" ? (
           <Link href={sceneId ? `/experiments/ai-video/scene/${sceneId}` : `/experiments/ai-video/media/${job.id}`}><Play aria-hidden="true" /> {sceneId ? "View scene" : "View video"}</Link>
+        ) : job.status === "failed" ? (
+          <Link href="/experiments/ai-video/create"><RefreshCw aria-hidden="true" /> Try again</Link>
         ) : (
           <Link href="/experiments/ai-video"><House aria-hidden="true" /> Return home</Link>
         )}
@@ -1670,7 +1689,9 @@ function QueueView() {
         <div className="aiv-queue-meta">
           <span><strong>{process.progress}%</strong></span>
           <span>
-            {process.status === "queued"
+            {process.errorMessage && active
+              ? process.errorMessage
+              : process.status === "queued"
               ? `Waiting to start · ${formatEstimate(process.estimatedSeconds)} estimate`
               : process.status === "running"
                 ? `${formatEstimate(process.remainingSeconds)} remaining · ${formatEstimate(process.estimatedSeconds)} estimate`
@@ -1863,7 +1884,13 @@ function MediaView({
               <div className="aiv-generation-copy">
                 <p className="aiv-kicker">{job?.status === "running" ? "IN PROGRESS" : "SUBMITTED"}</p>
                 <h1>Your preview is in motion.</h1>
-                <p>{job ? formatRemaining(job) : "Preparing the video generation service…"}</p>
+                <p>{media.errorMessage || (job ? formatRemaining(job) : "Preparing the video generation service…")}</p>
+                {media.errorMessage && (
+                  <div className="aiv-processing-warning">
+                    <AlertTriangle aria-hidden="true" />
+                    <span>The result check hit a problem. Retrying automatically.</span>
+                  </div>
+                )}
               </div>
               <div className="aiv-generation-progress">
                 <div
@@ -1893,7 +1920,7 @@ function MediaView({
           <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
           <p className="aiv-kicker">PENDING</p>
           <h1>Your {media.mediaType} was submitted.</h1>
-          <p>It will appear here as soon as processing finishes.</p>
+          <p>{media.errorMessage || "It will appear here as soon as processing finishes."}</p>
           <div className="aiv-picture-loader" aria-label="Media generation pending"><span /></div>
           <div className="aiv-actions"><Link href="/experiments/ai-video/library"><Library aria-hidden="true" /> Library</Link></div>
         </section>

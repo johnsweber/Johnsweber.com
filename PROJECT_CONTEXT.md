@@ -206,7 +206,9 @@ Job lifecycle:
 3. Video submission also creates a provider-specific `ai_video_jobs` row.
 4. Source media is saved beneath the user's private R2 prefix.
 5. The Worker submits `/generate` to the selected GPU provider.
-6. The UI polls the media/job route while work is pending.
+6. The UI polls the media/job route while work is pending. WAN results may
+   identify the completed asset with either `download_path` or `output_id`; an
+   `output_id` is resolved through the provider's `/video/:output_id` route.
 7. The Worker saves the completed picture or downloads the completed MP4 to R2.
 8. Generated videos queue a CPU-only Modal/FFmpeg task to decode and privately
    save the actual final frame. The media remains Pending near completion while
@@ -373,6 +375,9 @@ deployment; ask before browser or visual testing.
 - Job result ingestion is request/poll driven, not a background queue.
 - Last-frame and export ingestion are also request/poll driven; pending work can
   be left and safely resumed from the library or scene.
-- Result fetches have bounded timeouts; a temporary provider failure normally
-  leaves a job running so a later poll can retry.
+- Result fetches have bounded timeouts. A temporary provider/result-fetch
+  failure leaves the job pending so a later poll can retry, but writes the
+  retry reason to the job and media row. The library tile, queue, and progress
+  view display that warning. Confirmed provider failures atomically mark both
+  the job and media failed and display the terminal error in those same views.
 - Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.

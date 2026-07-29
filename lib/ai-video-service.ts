@@ -38,6 +38,35 @@ function estimatedProgress(job: AiVideoJob) {
   return Math.max(job.progress, Math.min(92, Math.round((elapsed / job.estimated_seconds) * 88 + 4)));
 }
 
+function providerErrorMessage(value: unknown, fallback: string) {
+  if (typeof value === "string" && value.trim()) return value;
+  if (!value || typeof value !== "object") return fallback;
+  const record = value as Record<string, unknown>;
+  for (const key of ["detail", "error", "message"]) {
+    const candidate = record[key];
+    if (typeof candidate === "string" && candidate.trim()) return candidate;
+  }
+  return fallback;
+}
+
+async function failVideoJob(job: AiVideoJob, message: string) {
+  const completedAt = new Date().toISOString();
+  await updateAiVideoJob(job.id, job.user_id, {
+    status: "failed",
+    error_message: message,
+    completed_at: completedAt,
+  });
+  const media = await getAiVideoMediaByJob(job.id, job.user_id);
+  if (media) {
+    await updateAiVideoMedia(media.id, job.user_id, {
+      status: "failed",
+      error_message: message,
+      completed_at: completedAt,
+    });
+  }
+  return (await getAiVideoJob(job.id, job.user_id)) || job;
+}
+
 export function publicAiVideoJob(job: AiVideoJob) {
   return {
     id: job.id,
@@ -116,34 +145,48 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       await updateAiVideoJob(job.id, job.user_id, {
         status: "running",
         progress: estimatedProgress(job),
+        error_message: null,
       });
+      const media = await getAiVideoMediaByJob(job.id, job.user_id);
+      if (media?.error_message) {
+        await updateAiVideoMedia(media.id, job.user_id, { error_message: null });
+      }
       return (await getAiVideoJob(job.id, job.user_id)) || job;
     }
 
     if (!resultResponse.ok) {
-      const message =
-        resultResponse.status === 404
-          ? "The generation result expired before it could be saved."
-          : "The video service could not complete this generation.";
-      await updateAiVideoJob(job.id, job.user_id, {
-        status: "failed",
-        error_message: message,
-      });
-      const media = await getAiVideoMediaByJob(job.id, job.user_id);
-      if (media) {
-        await updateAiVideoMedia(media.id, job.user_id, {
-          status: "failed",
-          error_message: message,
-        });
-      }
-      return (await getAiVideoJob(job.id, job.user_id)) || job;
+      const body = await resultResponse.json().catch(() => ({}));
+      const fallback = resultResponse.status === 404
+        ? "The generation result expired before it could be saved."
+        : `The video service stopped this generation (HTTP ${resultResponse.status}).`;
+      return failVideoJob(job, providerErrorMessage(body, fallback));
     }
 
     const result = (await resultResponse.json()) as {
       status?: string;
       download_path?: string;
+      output_id?: string;
+      detail?: unknown;
+      error?: unknown;
+      message?: unknown;
     };
-    if (result.status !== "complete" || !result.download_path) return job;
+    if (result.status === "failed" || result.status === "error") {
+      return failVideoJob(
+        job,
+        providerErrorMessage(result, "The video provider could not complete this generation."),
+      );
+    }
+    if (result.status !== "complete") return job;
+    const downloadPath = result.download_path ||
+      (typeof result.output_id === "string" && result.output_id
+        ? `/video/${encodeURIComponent(result.output_id)}`
+        : null);
+    if (!downloadPath) {
+      return failVideoJob(
+        job,
+        "The video provider finished but did not return a downloadable result.",
+      );
+    }
     const latestJob = await getAiVideoJob(job.id, job.user_id);
     if (
       latestJob?.status === "failed" &&
@@ -152,12 +195,18 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       return latestJob;
     }
 
-    const videoResponse = await fetch(`${endpoint}${result.download_path}`, {
+    const videoResponse = await fetch(`${endpoint}${downloadPath}`, {
       headers,
       signal: AbortSignal.timeout(30_000),
     });
     if (!videoResponse.ok || !videoResponse.body) {
-      throw new Error("Generated video could not be downloaded.");
+      if (videoResponse.status >= 400 && videoResponse.status < 500) {
+        return failVideoJob(
+          job,
+          `The generated video could not be downloaded (HTTP ${videoResponse.status}).`,
+        );
+      }
+      throw new Error(`Generated video download failed (HTTP ${videoResponse.status}).`);
     }
 
     const outputKey = `experiments/ai-video/users/${job.user_id}/videos/${job.id}.mp4`;
@@ -223,11 +272,22 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
       });
     }
     return (await getAiVideoJob(job.id, job.user_id)) || job;
-  } catch {
+  } catch (error) {
+    const message = error instanceof Error
+      ? `Result check delayed: ${error.message}`
+      : "Result check delayed. Retrying automatically.";
     await updateAiVideoJob(job.id, job.user_id, {
       status: "running",
       progress: estimatedProgress(job),
+      error_message: message,
     });
+    const media = await getAiVideoMediaByJob(job.id, job.user_id);
+    if (media) {
+      await updateAiVideoMedia(media.id, job.user_id, {
+        status: "pending",
+        error_message: message,
+      });
+    }
     return (await getAiVideoJob(job.id, job.user_id)) || job;
   }
 }

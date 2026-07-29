@@ -262,6 +262,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     new URL("../lib/ai-video-processing.ts", import.meta.url),
     "utf8",
   );
+  const videoService = await readFile(
+    new URL("../lib/ai-video-service.ts", import.meta.url),
+    "utf8",
+  );
   const processingSource = await readFile(
     new URL("../app/api/experiments/ai-video/processing/[taskId]/source/[mediaId]/route.ts", import.meta.url),
     "utf8",
@@ -315,6 +319,12 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Your preview is in motion/);
   assert.match(app, /aiv-generation-reference/);
   assert.match(app, /job\?\.progress \|\| 4/);
+  assert.match(app, /GENERATION STOPPED/);
+  assert.match(app, /aiv-processing-warning/);
+  assert.match(app, /Retrying automatically/);
+  assert.match(videoService, /failVideoJob/);
+  assert.match(videoService, /result\.output_id/);
+  assert.match(videoService, /Result check delayed/);
   assert.match(database, /ai_video_scene_items/);
   assert.match(database, /replaceAiVideoSceneItems/);
   assert.match(database, /AS effective_status/);
