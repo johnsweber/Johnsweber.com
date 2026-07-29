@@ -111,7 +111,8 @@ AI Video experiment (login required):
   pending state. Pending videos show their saved reference/thumbnail as a
   full preview with live generation percentage and estimated time, then
   transition automatically into the completed player. Completed videos with a
-  saved last frame offer **Extend video**.
+  saved last frame offer **Extend video**. Every completed video viewer also
+  offers **Save to device**, which downloads the authenticated private MP4.
   Completed pictures offer **Animate picture**, which opens Wan with that
   user-owned picture preloaded and previewed as its reference image, and
   **Edit picture**, which opens Z-Image Turbo with the saved picture preloaded
@@ -281,7 +282,9 @@ Job lifecycle:
 9. Extend preloads that saved frame into Wan and attaches the original and new
    clip to a user-owned scene in creation order.
 10. Scene Export always supplies authenticated private clip URLs to the CPU
-    service, regardless of the Demo/Production generation toggle;
+    service, regardless of the Demo/Production generation toggle. FFmpeg
+    preserves and normalizes clip audio, adding silence only when a source clip
+    has no audio;
     the merged MP4 and its last frame return to R2 as a new video media item.
     FFprobe records the exported file's measured duration rather than the sum
     of requested clip durations.

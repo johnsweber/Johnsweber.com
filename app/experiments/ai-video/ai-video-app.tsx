@@ -283,6 +283,45 @@ function BottomNavigation() {
   );
 }
 
+function SaveVideoButton({ mediaId }: { mediaId: string }) {
+  const authorizedFetch = useAuthorizedFetch();
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function saveVideo() {
+    setSaving(true);
+    setError("");
+    try {
+      const response = await authorizedFetch(
+        `/api/experiments/ai-video/media/${mediaId}/content`,
+      );
+      if (!response.ok) throw new Error("The video could not be downloaded.");
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const anchor = document.createElement("a");
+      anchor.href = url;
+      anchor.download = `johnsweber-video-${mediaId}.mp4`;
+      document.body.appendChild(anchor);
+      anchor.click();
+      anchor.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    } catch (saveError) {
+      setError(saveError instanceof Error ? saveError.message : "The video could not be downloaded.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <>
+      <button type="button" className="aiv-action-button secondary" onClick={saveVideo} disabled={saving}>
+        <Download aria-hidden="true" /> {saving ? "Preparing download…" : "Save to device"}
+      </button>
+      {error && <span className="aiv-card-error">{error}</span>}
+    </>
+  );
+}
+
 function ExperimentHeader({ close = false }: { close?: boolean }) {
   return (
     <header className="aiv-header">
@@ -2205,6 +2244,7 @@ function MediaView({
           </div>
           {media.mediaType === "video" && (
             <div className="aiv-actions aiv-player-actions">
+              <SaveVideoButton mediaId={media.id} />
               {media.hasLastFrame && lastFrameTask?.status !== "failed" ? (
                 <Link href={`/experiments/ai-video/create?mode=video&extend=${media.id}${sceneId ? `&scene=${sceneId}` : ""}`}>
                   <Plus aria-hidden="true" /> Extend video

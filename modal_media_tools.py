@@ -81,6 +81,14 @@ def _duration(source: pathlib.Path) -> float:
     return round(float(probe.stdout.strip()), 3)
 
 
+def _has_audio(source: pathlib.Path) -> bool:
+    probe = subprocess.run([
+        "ffprobe", "-v", "error", "-select_streams", "a:0",
+        "-show_entries", "stream=index", "-of", "csv=p=0", str(source),
+    ], check=True, capture_output=True, text=True)
+    return bool(probe.stdout.strip())
+
+
 @app.function(image=image, volumes={str(ROOT): volume}, cpu=2, timeout=900)
 def extract_last_frame(source_url: str, access_token: str):
     item = uuid.uuid4().hex
@@ -117,15 +125,37 @@ def merge_videos(source_urls: list[str], access_token: str):
     command = ["ffmpeg", "-y"]
     for path in inputs:
         command.extend(["-i", str(path)])
+    durations = [_duration(path) for path in inputs]
+    audio_inputs = []
+    for index, path in enumerate(inputs):
+        if _has_audio(path):
+            audio_inputs.append(index)
+        else:
+            audio_inputs.append(len(inputs) + sum(1 for value in audio_inputs if value >= len(inputs)))
+            command.extend([
+                "-f", "lavfi", "-t", str(durations[index]), "-i",
+                "anullsrc=channel_layout=stereo:sample_rate=48000",
+            ])
     filters = [
         f"[{index}:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
-        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps=24,setsar=1,setpts=PTS-STARTPTS[v{index}]"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2,fps=24,setsar=1,"
+        f"trim=duration={durations[index]},setpts=PTS-STARTPTS[v{index}]"
         for index in range(len(inputs))
     ]
-    filters.append("".join(f"[v{index}]" for index in range(len(inputs))) + f"concat=n={len(inputs)}:v=1:a=0[outv]")
+    filters.extend(
+        f"[{audio_inputs[index]}:a:0]aresample=48000,"
+        f"aformat=sample_fmts=fltp:channel_layouts=stereo,apad,"
+        f"atrim=duration={durations[index]},asetpts=PTS-STARTPTS[a{index}]"
+        for index in range(len(inputs))
+    )
+    filters.append(
+        "".join(f"[v{index}][a{index}]" for index in range(len(inputs)))
+        + f"concat=n={len(inputs)}:v=1:a=1[outv][outa]"
+    )
     command.extend([
-        "-filter_complex", ";".join(filters), "-map", "[outv]",
+        "-filter_complex", ";".join(filters), "-map", "[outv]", "-map", "[outa]",
         "-c:v", "libx264", "-preset", "veryfast", "-crf", "20",
+        "-c:a", "aac", "-b:a", "192k", "-ar", "48000",
         "-pix_fmt", "yuv420p", "-movflags", "+faststart", str(output),
     ])
     subprocess.run(command, check=True, capture_output=True)

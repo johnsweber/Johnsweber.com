@@ -330,6 +330,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     "utf8",
   );
   assert.match(app, /Extend video/);
+  assert.match(app, /Save to device/);
+  assert.match(app, /johnsweber-video-\$\{mediaId\}\.mp4/);
   assert.match(app, /Reference image/);
   assert.match(app, /Previewing the saved frame/);
   assert.match(app, /function SceneView/);
@@ -382,6 +384,9 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);
+  assert.match(modal, /concat=n=\{len\(inputs\)\}:v=1:a=1/);
+  assert.match(modal, /anullsrc=channel_layout=stereo:sample_rate=48000/);
+  assert.match(modal, /"-c:a", "aac"/);
   assert.match(modal, /format=duration/);
   assert.match(modal, /Range/);
   assert.match(modal, /range\(4\)/);
