@@ -30,7 +30,7 @@ import {
   X,
 } from "lucide-react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import {
   useCallback,
   useEffect,
@@ -258,23 +258,37 @@ function useAuthorizedFetch() {
 }
 
 function BottomNavigation() {
+  const pathname = usePathname();
+  const activeSection =
+    pathname === "/experiments/ai-video/create" ? "Create"
+    : pathname === "/experiments/ai-video/queue" ? "Queue"
+    : pathname === "/experiments/ai-video/library" ||
+      pathname.startsWith("/experiments/ai-video/media/") ||
+      pathname.startsWith("/experiments/ai-video/video/") ||
+      pathname.startsWith("/experiments/ai-video/scene/") ? "Library"
+    : "Home";
   const items = [
     { label: "Home", href: "/experiments/ai-video", icon: House },
     { label: "Library", href: "/experiments/ai-video/library", icon: Library },
-    { label: "Create", href: "/experiments/ai-video/create", icon: Plus, primary: true },
+    { label: "Create", href: "/experiments/ai-video/create", icon: Plus },
     { label: "Queue", href: "/experiments/ai-video/queue", icon: ListChecks },
     { label: "Settings", icon: Settings2, placeholder: true },
   ];
   return (
     <nav className="aiv-bottom-nav" aria-label="AI Video navigation">
-      {items.map(({ label, href, icon: Icon, primary, placeholder }) =>
+      {items.map(({ label, href, icon: Icon, placeholder }) =>
         placeholder ? (
           <button key={label} type="button" disabled title="Coming soon">
             <Icon aria-hidden="true" />
             <span>{label}</span>
           </button>
         ) : (
-          <Link key={label} href={href!} className={primary ? "primary" : undefined}>
+          <Link
+            key={label}
+            href={href!}
+            className={activeSection === label ? "active" : undefined}
+            aria-current={activeSection === label ? "page" : undefined}
+          >
             <Icon aria-hidden="true" />
             <span>{label}</span>
           </Link>

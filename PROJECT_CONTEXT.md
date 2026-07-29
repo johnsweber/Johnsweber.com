@@ -143,7 +143,10 @@ AI Video experiment (login required):
   FFmpeg merge that creates a new private video library item, then automatically
   opens its media view once the preview is ready.
 - `/experiments/ai-video/video/:id` — private video player.
-- Bottom navigation provides Home, Library, Create, Queue, and Settings.
+- Bottom navigation provides Home, Library, Create, Queue, and Settings. Exactly
+  one destination is active: media/video/scene viewers belong to Library, while
+  Create and Queue own their routes. The active item is filled; hover and
+  keyboard focus use a separate outline treatment.
 
 AI Video APIs:
 

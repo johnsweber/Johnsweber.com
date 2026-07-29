@@ -1763,9 +1763,20 @@ body.menu-open { overflow: hidden; }
   text-decoration: none;
   font: inherit;
   font-size: .65rem;
+  border: 1px solid transparent;
+  transition: border-color .16s ease, color .16s ease, background-color .16s ease;
 }
 .aiv-bottom-nav svg { width: 20px; height: 20px; }
-.aiv-bottom-nav .primary { color: white; background: var(--aiv-orange); }
+.aiv-bottom-nav a:hover, .aiv-bottom-nav a:focus-visible {
+  border-color: rgba(255,255,255,.7);
+  color: white;
+  outline: none;
+}
+.aiv-bottom-nav a.active {
+  border-color: transparent;
+  color: white;
+  background: var(--aiv-orange);
+}
 .aiv-bottom-nav button:disabled { opacity: .42; }
 .aiv-gate, .aiv-loading {
   min-height: calc(100vh - 86px);

@@ -175,6 +175,8 @@ test("separates picture and video creation models", async () => {
   assert.match(navaModal, /configs\/nava\.yaml/);
   assert.match(navaModal, /"--weight_dtype"/);
   assert.match(source, /Reference voice/);
+  assert.match(source, /const activeSection/);
+  assert.match(source, /aria-current=\{activeSection === label \? "page"/);
   assert.doesNotMatch(source, /NAVA Production is staged but not enabled/);
   assert.match(source, /Animate picture/);
   assert.match(source, /referenceMediaId/);
