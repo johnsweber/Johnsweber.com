@@ -477,10 +477,15 @@ test("reconciles provider work with bounded retry and terminal policies", async 
     shouldReconcileTask({ status: "pending", modal_result_path: "/result/task" }),
     true,
   );
-  const retry = nextRetryState(MAX_PROVIDER_RETRIES - 1, "temporary outage");
-  assert.equal(retry.terminal, true);
-  assert.equal(retry.retryCount, MAX_PROVIDER_RETRIES);
-  assert.match(retry.message, /stopped after 12 attempts/i);
+  assert.equal(MAX_PROVIDER_RETRIES, 1);
+  const retry = nextRetryState(0, "temporary outage");
+  assert.equal(retry.terminal, false);
+  assert.equal(retry.retryCount, 1);
+  assert.match(retry.message, /retrying once/i);
+  const failure = nextRetryState(retry.retryCount, "temporary outage");
+  assert.equal(failure.terminal, true);
+  assert.equal(failure.retryCount, 2);
+  assert.match(failure.message, /failed after one automatic retry/i);
 
   const worker = await readFile(new URL("../worker/index.ts", import.meta.url), "utf8");
   const reconciler = await readFile(

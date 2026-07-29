@@ -496,8 +496,8 @@ deployment; ask before browser or visual testing.
 - Job, last-frame, and export result ingestion is handled by a one-minute
   Cloudflare scheduled reconciler and no longer depends on an open browser.
 - Result fetches have bounded timeouts. A temporary provider/result-fetch
-  failure leaves work pending for up to 12 attempts and records provider
-  contact/retry diagnostics. Confirmed provider failures atomically advance
-  the associated job, media, or processing task to the appropriate terminal
-  state.
+  failure is reported immediately and receives one automatic retry. If that
+  retry also fails, the associated job, media, or processing task advances to
+  terminal Failed state with the recorded provider error. Confirmed provider
+  failures remain terminal immediately.
 - Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.
