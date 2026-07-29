@@ -156,7 +156,9 @@ Generation environment:
   Production video requests use the configured Wan/LTX Modal endpoints;
   Production pictures continue to use the configured local ComfyUI gateway.
 - Demo media stays behind the authenticated private media routes. Those routes
-  proxy only validated `commons.wikimedia.org` URLs recorded by the server.
+  proxy only validated `commons.wikimedia.org` URLs recorded by the server and
+  identify the application with Wikimedia-compliant request headers.
+  Image-guided production models do not require a source upload in Demo mode.
   Source/creator/license details are maintained in
   `docs/demo-media-sources.md` and `lib/demo-media.ts`.
 

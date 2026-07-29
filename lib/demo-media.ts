@@ -166,7 +166,13 @@ export async function proxyDemoMedia(
 ) {
   const url = demoUrlFromObjectKey(objectKey);
   if (!url) return null;
-  const headers = new Headers();
+  const headers = new Headers({
+    Accept: options.thumbnail ? "image/*" : "*/*",
+    "Api-User-Agent":
+      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
+    "User-Agent":
+      "JohnsweberDemoMedia/1.0 (https://johnsweber.com; portfolio demo)",
+  });
   if (options.range && !options.thumbnail) headers.set("Range", options.range);
   const upstream = await fetch(url, {
     headers,

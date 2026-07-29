@@ -147,12 +147,24 @@ test("defaults generation to session-scoped demo mode", async () => {
     new URL("../lib/use-production-mode.ts", import.meta.url),
     "utf8",
   );
+  const demoMedia = await readFile(
+    new URL("../lib/demo-media.ts", import.meta.url),
+    "utf8",
+  );
+  const aiVideo = await readFile(
+    new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
+    "utf8",
+  );
   assert.match(navigation, /Use Production/);
   assert.match(navigation, />\s*Demo\s*</);
   assert.match(navigation, />\s*Production\s*</);
   assert.match(sessionMode, /sessionStorage/);
   assert.match(sessionMode, /useState\(false\)/);
   assert.match(productionMode, /x-johnsweber-use-production/);
+  assert.match(demoMedia, /Api-User-Agent/);
+  assert.match(demoMedia, /JohnsweberDemoMedia/);
+  assert.match(aiVideo, /Demo mode returns a free example video/);
+  assert.match(aiVideo, /useProduction && videoModel\.supportsImage/);
 });
 
 test("normalizes structured Modal responses before D1 writes", async () => {

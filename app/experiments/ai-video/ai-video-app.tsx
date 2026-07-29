@@ -35,7 +35,10 @@ import {
 import { useAuthConfigured } from "@/app/auth-provider";
 import { AI_VIDEO_MODELS, type AiVideoModelKey } from "@/lib/ai-video-models";
 import { USE_PRODUCTION_HEADER } from "@/lib/production-mode";
-import { readUseProduction } from "@/lib/use-production-mode";
+import {
+  readUseProduction,
+  useProductionMode,
+} from "@/lib/use-production-mode";
 
 type View = "home" | "create" | "library" | "player" | "media";
 type CreationType = "picture" | "video";
@@ -534,6 +537,7 @@ function PicturePending() {
 function CreateView() {
   const authorizedFetch = useAuthorizedFetch();
   const { user } = useUser();
+  const { useProduction } = useProductionMode(user?.id);
   const [creationType, setCreationType] = useState<CreationType>("picture");
   const [pictureModel, setPictureModel] = useState<PictureModelKey>("base");
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
@@ -603,7 +607,10 @@ function CreateView() {
       form.set("prompt", prompt);
       form.set("negativePrompt", negativePrompt);
       form.set("seed", String(seed));
-      form.set("sourceProvider", videoModel.supportsImage ? "upload" : "none");
+      form.set(
+        "sourceProvider",
+        useProduction && videoModel.supportsImage ? "upload" : "none",
+      );
       if (source) form.set("sourceImage", source);
       form.set("displayName", user?.fullName || "");
       form.set("email", user?.primaryEmailAddress?.emailAddress || "");
@@ -655,7 +662,11 @@ function CreateView() {
         <div className="aiv-create-heading">
           <p className="aiv-kicker">CREATE</p>
           <h1>Make something new.</h1>
-          <p>Everything you submit is logged and saved privately to your account.</p>
+          <p>
+            {useProduction
+              ? "Everything you submit is logged and saved privately to your account."
+              : "Demo mode returns a free sample and never calls a generation model."}
+          </p>
           <div className="aiv-type-pill" role="group" aria-label="Creation type">
             <button
               type="button"
@@ -715,20 +726,24 @@ function CreateView() {
               <strong>
                 {creationType === "picture"
                   ? "Describe the picture"
-                  : videoModel.supportsImage
+                  : videoModel.supportsImage && useProduction
                     ? "Add an image and describe the motion"
                     : "Describe the whole scene"}
               </strong>
               <small>
                 {creationType === "picture"
-                  ? "Your connected picture model will create a private 1024 × 576 image."
-                  : videoModel.supportsImage
+                  ? useProduction
+                    ? "Your connected picture model will create a private 1024 × 576 image."
+                    : "Demo mode returns a free example picture for your private library."
+                  : videoModel.supportsImage && useProduction
                     ? "Upload a JPG, PNG, or WebP up to 12 MB."
-                    : "LTX creates from text and includes audio."}
+                    : useProduction
+                      ? "LTX creates from text and includes audio."
+                      : "Demo mode returns a free example video; no source image is needed."}
               </small>
             </div>
           </div>
-          {creationType === "video" && videoModel.supportsImage && (
+          {creationType === "video" && videoModel.supportsImage && useProduction && (
             <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
               {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
               <strong>{source ? source.name : "Choose source image"}</strong>
@@ -807,7 +822,10 @@ function CreateView() {
             disabled={
               submitting ||
               !prompt ||
-              (creationType === "video" && videoModel.supportsImage && !source)
+              (useProduction &&
+                creationType === "video" &&
+                videoModel.supportsImage &&
+                !source)
             }
           >
             {submitting ? "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
