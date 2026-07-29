@@ -1,0 +1,213 @@
+# Johnsweber.com project context
+
+Last updated: 2026-07-28
+
+## Purpose and production
+
+Personal portfolio, resume, and authenticated experiment playground for John
+Weber.
+
+- Production: `https://johnsweber.com`
+- Alias: `https://www.johnsweber.com`
+- GitHub: `johnsweber/Johnsweber.com`
+- Production branch/source of truth: `main`
+- Cloudflare Worker: `johnsweber-playground`
+- Runtime: vinext/Next-compatible React app on Cloudflare Workers
+- Node requirement: `>=22.13.0`
+
+Cloudflare production resources:
+
+- D1 binding `DB` -> `site-creator-d1`
+- R2 binding `MEDIA` -> private bucket `site-creator-r2`
+- Custom domains are attached directly to the Worker.
+- `.openai/hosting.json` declares the Sites project and binding names.
+
+Do not commit Cloudflare account IDs, resource credentials, Clerk keys, Modal
+tokens, or local gateway tokens. The generated `dist/server/wrangler.json`
+currently requires the real production D1 ID to be supplied after a build and
+before a direct Wrangler deployment; `vite.config.ts` intentionally contains a
+placeholder ID.
+
+## Architecture at a glance
+
+```text
+Browser
+  |
+  | React UI + Clerk session token
+  v
+Cloudflare Worker (vinext routes)
+  |-- Clerk verifies identity
+  |-- D1 stores shared profile + experiment-owned job metadata
+  |-- R2 stores private source images, thumbnails, and completed videos
+  |-- Modal proxy-auth endpoints run Wan/LTX GPU generation
+  `-- Protected local gateway runs ComfyUI still-image generation
+```
+
+The browser never receives Modal proxy credentials or the local gateway token.
+All experiment APIs and media routes authenticate the Clerk bearer token and
+scope reads/writes by Clerk user ID.
+
+## Application surfaces
+
+Public/general:
+
+- `/` — portfolio and playground landing page.
+- Grid icon in the top-left opens the site navigation.
+- Navigation shows login when signed out and account details/management when
+  signed in.
+- `/login` — Clerk sign-in.
+- `/create-account` — account creation through Google or Apple SSO only.
+- `/sso-callback` — SSO completion.
+- `/manage-account/*` — Clerk account management.
+- `/api/gpu-status` — protected server-side Modal H100 connectivity probe.
+
+AI Video experiment (login required):
+
+- `/experiments/ai-video` — experiment home.
+- `/experiments/ai-video/create` — generation form and progress.
+- `/experiments/ai-video/library` — private user library with thumbnails.
+- `/experiments/ai-video/video/:id` — private video player.
+- Bottom navigation provides Home, Create, Library, and placeholders.
+
+AI Video APIs:
+
+- `GET/POST /api/experiments/ai-video/jobs`
+- `GET /api/experiments/ai-video/jobs/:id`
+- `GET /api/experiments/ai-video/jobs/:id/thumbnail`
+- `GET /api/experiments/ai-video/jobs/:id/video`
+- `POST /api/experiments/ai-video/local-source`
+
+## AI Video providers and flow
+
+Video models are declared in `lib/ai-video-models.ts`.
+
+- Wan 2.2 I2V-A14B
+  - Image-to-video; source image required.
+  - 480p (`832x480`) or 720p (`1280x720`).
+  - Approximately 5 or 10 seconds at 16 fps.
+  - Runtime URL: `WAN22_MODAL_URL`.
+- LTX 2.3
+  - Text-to-video with synchronized generated audio.
+  - `768x512` or `1280x768`.
+  - Approximately 5 or 10 seconds at 24 fps.
+  - Runtime URL: `LTX23_MODAL_URL`.
+
+Wan source-image choices use the same create UI:
+
+- Upload JPG, PNG, or WebP, maximum 12 MB.
+- Local GPU/ComfyUI via `POST /local-source`:
+  - SDXL Base 1.0 (`base`)
+  - Animagine XL 4.0 (`animagine`)
+  - Generates a `1024x576` still, returns it privately to the browser, and the
+    browser submits that still to the Wan job route.
+
+Job lifecycle:
+
+1. Authenticated form submission creates a user-owned D1 job.
+2. Source media is saved beneath the user's private R2 prefix.
+3. Worker submits `/generate` to the selected protected Modal endpoint.
+4. The UI polls the job route; progress is estimated from elapsed time.
+5. The Worker polls Modal's result path, downloads the completed MP4, saves it
+   to R2, and marks the D1 job complete.
+6. Private thumbnail/video routes stream only after verifying ownership.
+
+## Data boundaries
+
+Schema source: `db/schema.ts`; migrations: `drizzle/`.
+
+Shared across experiments:
+
+- `shared_user_profiles` — display metadata only. Clerk remains authoritative
+  for identity, authentication, account security, and sessions.
+- `experiment_catalog` — experiment slug, display name, status, and unique API
+  namespace.
+
+Owned only by AI Video:
+
+- `ai_video_jobs` — configuration, provider/model, progress, Modal call/result
+  references, private object keys, error state, and timestamps.
+- D1 queries always include `user_id` for user-owned records.
+- R2 keys use:
+  `experiments/ai-video/users/{clerkUserId}/{sources|videos}/...`
+
+When adding another experiment:
+
+1. Give it `/api/experiments/{slug}`.
+2. Add its own tables instead of extending or reusing `ai_video_jobs`.
+3. Give it `experiments/{slug}/users/{clerkUserId}/...` R2 prefixes.
+4. Reuse only Clerk/account status and `shared_user_profiles`.
+5. Add the experiment to `experiment_catalog`.
+
+## Important files
+
+- `app/layout.tsx` — root layout and auth provider wiring.
+- `app/site-navigation.tsx` — grid navigation and signed-in/out experience.
+- `app/auth-provider.tsx`, `app/auth-screen.tsx` — Clerk integration.
+- `app/experiments/ai-video/ai-video-app.tsx` — shared experiment UI.
+- `app/api/experiments/ai-video/` — authenticated job and media endpoints.
+- `lib/api-auth.ts` — Clerk API authentication.
+- `lib/ai-video-models.ts` — supported model/quality/duration matrix.
+- `lib/ai-video-service.ts` — job projection, progress, result ingestion.
+- `db/schema.ts`, `db/ai-video.ts` — schema and D1 access.
+- `drizzle/` — production SQL migrations.
+- `worker/index.ts` — Cloudflare Worker entry.
+- `vite.config.ts` — vinext, Sites, and Cloudflare bindings.
+- `modal_app.py` — lightweight playground H100 health/probe service; the Wan
+  and LTX generation deployments are separate Modal apps.
+
+## Runtime configuration
+
+Browser/build:
+
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`
+
+Encrypted Worker runtime values:
+
+- `CLERK_SECRET_KEY`
+- `MODAL_GPU_URL`
+- `MODAL_PROXY_TOKEN_ID`
+- `MODAL_PROXY_TOKEN_SECRET`
+- `WAN22_MODAL_URL`
+- `LTX23_MODAL_URL`
+- `LOCAL_IMAGE_GATEWAY_URL`
+- `LOCAL_IMAGE_GATEWAY_TOKEN`
+
+Use ignored local `.env*` files for development and Cloudflare Worker secrets
+for production. Never display or document their values.
+
+## Development, validation, and deployment
+
+```bash
+npm install
+npm run dev
+npm run lint
+npm test
+```
+
+`npm test` performs a production build and rendered-HTML tests. Relevant
+checks should be run in proportion to the change. Do not start visual/browser
+testing without the user's permission.
+
+Standard deployment target:
+
+```bash
+npm run deploy
+```
+
+Wrangler must be authenticated to the correct Cloudflare account. Confirm that
+the built Worker has the real D1 database ID before publishing because the Vite
+source configuration uses a safe placeholder. Apply new SQL files to remote D1
+before deploying code that depends on them. A non-visual HTTP status check is
+acceptable after deployment; ask before browser or visual testing.
+
+## Known operational constraints
+
+- Modal GPU endpoints are usage-metered and cold starts can dominate latency.
+- The local ComfyUI source option works only while the private local gateway is
+  online and reachable at its configured URL.
+- Generated media is private in R2; there are no public bucket URLs.
+- Job result ingestion is request/poll driven, not a background queue.
+- Result fetches have bounded timeouts; a temporary provider failure normally
+  leaves a job running so a later poll can retry.
+- Cloudflare R2/D1/Workers and Modal have separate usage limits/billing.
+
