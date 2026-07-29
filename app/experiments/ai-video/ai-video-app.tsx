@@ -6,6 +6,7 @@ import {
   Check,
   Clock3,
   Clapperboard,
+  Cpu,
   House,
   Images,
   Library,
@@ -374,6 +375,10 @@ function CreateView() {
   const model = AI_VIDEO_MODELS[modelKey];
   const [quality, setQuality] = useState("480p");
   const [duration, setDuration] = useState("5");
+  const [sourceMode, setSourceMode] = useState<"upload" | "local">("upload");
+  const [localSourceModel, setLocalSourceModel] = useState<"base" | "animagine">("base");
+  const [localSourcePrompt, setLocalSourcePrompt] = useState("");
+  const [localGenerating, setLocalGenerating] = useState(false);
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -391,6 +396,50 @@ function CreateView() {
     if (next === "ltx23") setSource(null);
   }
 
+  function chooseSourceMode(next: "upload" | "local") {
+    setSourceMode(next);
+    setSource(null);
+    setError("");
+  }
+
+  async function generateLocalSource() {
+    setError("");
+    setLocalGenerating(true);
+    try {
+      const response = await authorizedFetch(
+        "/api/experiments/ai-video/local-source",
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            prompt: localSourcePrompt,
+            model: localSourceModel,
+          }),
+        },
+      );
+      if (!response.ok) {
+        const data = (await response.json().catch(() => ({}))) as {
+          error?: string;
+        };
+        throw new Error(data.error || "The local GPU could not generate a source image.");
+      }
+      const blob = await response.blob();
+      setSource(
+        new File([blob], `local-${localSourceModel}-source.png`, {
+          type: blob.type || "image/png",
+        }),
+      );
+    } catch (localError) {
+      setError(
+        localError instanceof Error
+          ? localError.message
+          : "The local GPU is unavailable.",
+      );
+    } finally {
+      setLocalGenerating(false);
+    }
+  }
+
   async function submit(event: FormEvent) {
     event.preventDefault();
     setError("");
@@ -403,6 +452,8 @@ function CreateView() {
       form.set("prompt", prompt);
       form.set("negativePrompt", negativePrompt);
       form.set("seed", String(seed));
+      form.set("sourceProvider", model.supportsImage ? sourceMode : "none");
+      form.set("sourceModelKey", sourceMode === "local" ? localSourceModel : "");
       if (source) form.set("sourceImage", source);
       form.set("displayName", user?.fullName || "");
       form.set("email", user?.primaryEmailAddress?.emailAddress || "");
@@ -461,12 +512,85 @@ function CreateView() {
         <section className="aiv-form-section">
           <div className="aiv-step"><span>2</span><div><strong>{model.supportsImage ? "Add your source image" : "Describe the whole scene"}</strong><small>{model.supportsImage ? "JPG, PNG, or WebP up to 12 MB." : "LTX 2.3 currently creates from text and includes audio."}</small></div></div>
           {model.supportsImage && (
-            <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
-              {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
-              <strong>{source ? source.name : "Choose source image"}</strong>
-              <span>{source ? "Click to replace" : "The composition anchors the generated motion."}</span>
-              <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setSource(event.target.files?.[0] || null)} required />
-            </label>
+            <>
+              <label className="aiv-provider-select">
+                <span>Source provider</span>
+                <select
+                  value={sourceMode}
+                  onChange={(event) =>
+                    chooseSourceMode(event.target.value as "upload" | "local")
+                  }
+                >
+                  <option value="upload">Upload an image</option>
+                  <option value="local">Local GPU · ComfyUI</option>
+                </select>
+              </label>
+              {sourceMode === "upload" ? (
+                <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
+                  {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
+                  <strong>{source ? source.name : "Choose source image"}</strong>
+                  <span>{source ? "Click to replace" : "The composition anchors the generated motion."}</span>
+                  <input type="file" accept="image/jpeg,image/png,image/webp" onChange={(event) => setSource(event.target.files?.[0] || null)} required />
+                </label>
+              ) : (
+                <div className="aiv-local-source">
+                  <div className="aiv-local-source-top">
+                    <span><Cpu aria-hidden="true" /></span>
+                    <div>
+                      <strong>Generate the source on your local GPU</strong>
+                      <small>The finished still is handed privately to Wan 2.2 for animation.</small>
+                    </div>
+                  </div>
+                  <label className="aiv-provider-select">
+                    <span>Local image model</span>
+                    <select
+                      value={localSourceModel}
+                      onChange={(event) =>
+                        setLocalSourceModel(
+                          event.target.value as "base" | "animagine",
+                        )
+                      }
+                    >
+                      <option value="base">SDXL Base 1.0</option>
+                      <option value="animagine">Animagine XL 4.0</option>
+                    </select>
+                  </label>
+                  <label className="aiv-field">
+                    <span>Source image prompt</span>
+                    <textarea
+                      value={localSourcePrompt}
+                      onChange={(event) => setLocalSourcePrompt(event.target.value)}
+                      placeholder="A cinematic portrait in warm window light, composed for subtle motion…"
+                      maxLength={2000}
+                    />
+                  </label>
+                  {preview && (
+                    <div className="aiv-local-preview">
+                      <img src={preview} alt="Locally generated source" />
+                      <span><Check aria-hidden="true" /> Source ready</span>
+                    </div>
+                  )}
+                  <button
+                    className="aiv-local-generate"
+                    type="button"
+                    disabled={localGenerating || !localSourcePrompt}
+                    onClick={generateLocalSource}
+                  >
+                    <Cpu aria-hidden="true" />
+                    {localGenerating
+                      ? "Local GPU is generating…"
+                      : source
+                        ? "Regenerate source"
+                        : "Generate source locally"}
+                  </button>
+                  {localGenerating && (
+                    <p className="aiv-local-note">
+                      ComfyUI can take several minutes. Keep this page open until the preview appears.
+                    </p>
+                  )}
+                </div>
+              )}
+            </>
           )}
           <label className="aiv-field">
             <span>Motion prompt</span>

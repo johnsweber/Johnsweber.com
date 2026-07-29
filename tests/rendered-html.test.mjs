@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { readFile } from "node:fs/promises";
 import test from "node:test";
 
 async function render(path = "/") {
@@ -67,4 +68,14 @@ test("renders the protected AI Video experiment gate", async () => {
   assert.match(html, /AI VIDEO/);
   assert.match(html, /AI Video is ready for authentication/);
   assert.doesNotMatch(html, /source images, generations, and library stay attached/i);
+});
+
+test("offers the local ComfyUI source provider", async () => {
+  const source = await readFile(
+    new URL("../app/experiments/ai-video/ai-video-app.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(source, /Local GPU · ComfyUI/);
+  assert.match(source, /SDXL Base 1\.0/);
+  assert.match(source, /Animagine XL 4\.0/);
 });

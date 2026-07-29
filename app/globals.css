@@ -1022,3 +1022,97 @@ body.menu-open { overflow: hidden; }
   font-weight: 800;
   text-decoration: none;
 }
+
+.aiv-provider-select {
+  display: flex;
+  flex-direction: column;
+  gap: .55rem;
+  margin-bottom: 1rem;
+  color: var(--aiv-ink);
+  font-size: .8rem;
+  font-weight: 750;
+}
+
+.aiv-provider-select select {
+  width: 100%;
+  min-height: 50px;
+  padding: 0 2.7rem 0 .95rem;
+  border: 1px solid var(--aiv-line);
+  border-radius: 15px;
+  color: var(--aiv-ink);
+  background: rgba(255,255,255,.75);
+  font: inherit;
+}
+
+.aiv-local-source {
+  margin-bottom: 1rem;
+  padding: 1.25rem;
+  border: 1px solid var(--aiv-line);
+  border-radius: 22px;
+  background: rgba(255,255,255,.52);
+}
+
+.aiv-local-source-top {
+  display: flex;
+  align-items: center;
+  gap: .85rem;
+  margin-bottom: 1.2rem;
+}
+
+.aiv-local-source-top > span {
+  width: 44px;
+  height: 44px;
+  display: grid;
+  place-items: center;
+  flex: none;
+  border-radius: 14px;
+  color: white;
+  background: var(--aiv-violet);
+}
+
+.aiv-local-source-top svg { width: 21px; }
+.aiv-local-source-top > div { display: flex; flex-direction: column; gap: .2rem; }
+.aiv-local-source-top small { color: var(--aiv-muted); line-height: 1.4; }
+.aiv-local-preview {
+  position: relative;
+  margin-top: 1rem;
+  overflow: hidden;
+  aspect-ratio: 16 / 9;
+  border-radius: 16px;
+  background: #201b33;
+}
+.aiv-local-preview img { width: 100%; height: 100%; object-fit: cover; }
+.aiv-local-preview span {
+  position: absolute;
+  left: .8rem;
+  bottom: .8rem;
+  padding: .45rem .65rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .35rem;
+  border-radius: 999px;
+  color: white;
+  background: rgba(20,17,30,.75);
+  font-size: .7rem;
+  font-weight: 800;
+  backdrop-filter: blur(8px);
+}
+.aiv-local-preview svg { width: 15px; }
+.aiv-local-generate {
+  min-height: 48px;
+  margin-top: 1rem;
+  padding: 0 1rem;
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
+  border: 0;
+  border-radius: 999px;
+  color: white;
+  background: var(--aiv-violet);
+  font: inherit;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.aiv-local-generate:disabled { opacity: .5; }
+.aiv-local-generate svg { width: 18px; }
+.aiv-local-note { margin: .8rem 0 0; color: var(--aiv-muted); font-size: .75rem; }

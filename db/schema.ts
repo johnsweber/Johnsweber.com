@@ -57,6 +57,8 @@ export const aiVideoJobs = sqliteTable(
     modalResultPath: text("modal_result_path"),
     sourceObjectKey: text("source_object_key"),
     sourceFileName: text("source_file_name"),
+    sourceProvider: text("source_provider").notNull().default("upload"),
+    sourceModelKey: text("source_model_key"),
     thumbnailObjectKey: text("thumbnail_object_key"),
     outputObjectKey: text("output_object_key"),
     outputMimeType: text("output_mime_type"),

@@ -73,3 +73,11 @@ The deployed Modal model services require:
 Wan 2.2 supports image-to-video at 480p or 720p for approximately 5 or
 10 seconds. LTX 2.3 supports text-to-video with synchronized audio at
 768×512 or 1280×768 for approximately 5 or 10 seconds.
+
+For Wan source images, the Create screen can either accept an upload or call
+the protected local ComfyUI gateway. The local option offers SDXL Base 1.0 and
+Animagine XL 4.0, returns the generated still privately to the browser, and
+then hands that still to Wan for animation. It requires:
+
+- `LOCAL_IMAGE_GATEWAY_URL`
+- `LOCAL_IMAGE_GATEWAY_TOKEN`

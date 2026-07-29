@@ -47,6 +47,8 @@ export async function POST(request: Request) {
     const durationKey = String(form.get("duration") || "");
     const prompt = String(form.get("prompt") || "").trim();
     const negativePrompt = String(form.get("negativePrompt") || "").trim();
+    const sourceProvider = String(form.get("sourceProvider") || "upload");
+    const sourceModelKey = String(form.get("sourceModelKey") || "");
     const seedValue = Number(form.get("seed") || Math.floor(Math.random() * 2_147_483_647));
     const source = form.get("sourceImage");
     const settings = getGenerationSettings(modelKey, qualityKey, durationKey);
@@ -118,6 +120,16 @@ export async function POST(request: Request) {
       modal_result_path: null,
       source_object_key: sourceObjectKey,
       source_file_name: sourceFileName,
+      source_provider:
+        !model.supportsImage
+          ? "none"
+          : sourceProvider === "local"
+            ? "local"
+            : "upload",
+      source_model_key:
+        sourceProvider === "local" && ["base", "animagine"].includes(sourceModelKey)
+          ? sourceModelKey
+          : null,
       thumbnail_object_key: sourceObjectKey,
       output_object_key: null,
       output_mime_type: null,

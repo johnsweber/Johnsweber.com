@@ -18,6 +18,8 @@ export type AiVideoJob = {
   modal_result_path: string | null;
   source_object_key: string | null;
   source_file_name: string | null;
+  source_provider: string;
+  source_model_key: string | null;
   thumbnail_object_key: string | null;
   output_object_key: string | null;
   output_mime_type: string | null;
@@ -98,6 +100,8 @@ export async function ensureAiVideoSchema() {
         modal_result_path TEXT,
         source_object_key TEXT,
         source_file_name TEXT,
+        source_provider TEXT DEFAULT 'upload' NOT NULL,
+        source_model_key TEXT,
         thumbnail_object_key TEXT,
         output_object_key TEXT,
         output_mime_type TEXT,
@@ -174,10 +178,10 @@ export async function insertAiVideoJob(job: AiVideoJob) {
         id, user_id, model_key, generation_mode, prompt, negative_prompt,
         status, progress, quality, duration_seconds, width, height, fps, seed,
         estimated_seconds, modal_call_id, modal_result_path, source_object_key,
-        source_file_name, thumbnail_object_key, output_object_key,
+        source_file_name, source_provider, source_model_key, thumbnail_object_key, output_object_key,
         output_mime_type, error_message, created_at, updated_at, completed_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `)
     .bind(
@@ -200,6 +204,8 @@ export async function insertAiVideoJob(job: AiVideoJob) {
       job.modal_result_path,
       job.source_object_key,
       job.source_file_name,
+      job.source_provider,
+      job.source_model_key,
       job.thumbnail_object_key,
       job.output_object_key,
       job.output_mime_type,
