@@ -140,6 +140,8 @@ Video models are declared in `lib/ai-video-models.ts`.
     `https://johnsweber--video-models-wan-api.modal.run`.
   - API routes below that base remain `/generate`, `/result/{call_id}`, and
     `/video/{output_id}`.
+  - `/generate` accepts the generation request as a JSON body; the Modal route
+    explicitly validates that body before spawning the GPU call.
 - LTX 2.3
   - Text-to-video with synchronized generated audio.
   - `768x512` or `1280x768`.

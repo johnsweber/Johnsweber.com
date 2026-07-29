@@ -210,6 +210,7 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /resultPath\?\.split/);
   assert.match(source, /modal_call_id: callId/);
   assert.match(source, /num_inference_steps: 20/);
+  assert.match(source, /body: JSON\.stringify\(payload\)/);
 });
 
 test("supports saved last frames, extendable scenes, and CPU exports", async () => {
