@@ -338,6 +338,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Animate this image:/);
   assert.match(app, /Retry · new seed/);
   assert.match(app, /setSeed\(\(media\.seed \+ 1\) % 2_147_483_648\)/);
+  assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/media\/\$\{data\.media\.id\}`\)/);
+  assert.match(app, /window\.location\.assign\(`\/experiments\/ai-video\/create\?mode=video&animate=/);
   assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
   assert.match(app, /href: "\/experiments\/ai-video\/queue"/);

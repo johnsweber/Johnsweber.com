@@ -1001,7 +1001,6 @@ function CreateView() {
   const [submissionStatus, setSubmissionStatus] = useState("");
   const [error, setError] = useState("");
   const [job, setJob] = useState<PublicJob | null>(null);
-  const [createdMedia, setCreatedMedia] = useState<PublicMedia | null>(null);
   const [createdSceneId, setCreatedSceneId] = useState<string | null>(null);
   const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
   const [animateMedia, setAnimateMedia] = useState<PublicMedia | null>(null);
@@ -1255,7 +1254,7 @@ function CreateView() {
         if (!response.ok || !data.media) {
           throw new Error(data.error || "Picture generation could not finish.");
         }
-        setCreatedMedia(data.media);
+        window.location.assign(`/experiments/ai-video/media/${data.media.id}`);
         return;
       }
 
@@ -1332,10 +1331,6 @@ function CreateView() {
       </main>
     );
   }
-  if (createdMedia) {
-    return <MediaView mediaId={createdMedia.id} initialMedia={createdMedia} />;
-  }
-
   return (
     <main className="aiv-page">
       <ExperimentHeader />
@@ -2188,15 +2183,27 @@ function MediaView({
           )}
           {media.mediaType === "picture" && (
             <div className="aiv-actions aiv-player-actions">
-              <a href={`/experiments/ai-video/create?mode=video&animate=${media.id}`}>
+              <button
+                type="button"
+                className="aiv-action-button"
+                onClick={() => window.location.assign(`/experiments/ai-video/create?mode=video&animate=${media.id}`)}
+              >
                 <WandSparkles aria-hidden="true" /> Animate picture
-              </a>
-              <Link className="secondary" href={`/experiments/ai-video/create?edit=${media.id}`}>
-                <Pencil aria-hidden="true" /> Edit picture
-              </Link>
-              <a className="secondary" href={`/experiments/ai-video/create?retry=${media.id}`}>
+              </button>
+              <button
+                type="button"
+                className="aiv-action-button"
+                onClick={() => window.location.assign(`/experiments/ai-video/create?retry=${media.id}`)}
+              >
                 <RefreshCw aria-hidden="true" /> Retry · new seed
-              </a>
+              </button>
+              <button
+                type="button"
+                className="aiv-action-button secondary"
+                onClick={() => window.location.assign(`/experiments/ai-video/create?edit=${media.id}`)}
+              >
+                <Pencil aria-hidden="true" /> Edit picture
+              </button>
             </div>
           )}
         </section>

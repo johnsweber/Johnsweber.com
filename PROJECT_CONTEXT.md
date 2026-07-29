@@ -118,6 +118,9 @@ AI Video experiment (login required):
   as its private image-to-image reference. **Retry · new seed** restores the
   picture model, prompt, negative prompt, preset, and aspect ratio while
   advancing to a different valid seed.
+  Successful picture requests immediately open their canonical media route,
+  so Animate, Retry, and Edit always operate from the same viewer state used
+  after reopening an item from the library.
   Video players read the file's actual metadata duration and persist it back to
   the owned media record, correcting older configuration-derived durations.
   **Scan timeline** lazily samples roughly one frame per three seconds in the
