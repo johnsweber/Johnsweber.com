@@ -309,7 +309,8 @@ export async function POST(request: Request) {
             image_base64: Buffer.from(imageBytes as ArrayBuffer).toString("base64"),
             resolution: qualityKey,
             num_frames: settings.duration.frames,
-            num_inference_steps: 40,
+            // Favor quick playground iterations; quality can be raised later.
+            num_inference_steps: 20,
             guidance_scale: 3.5,
             seed: seedValue,
             fps: settings.duration.fps,

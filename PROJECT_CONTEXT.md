@@ -130,6 +130,8 @@ Video models are declared in `lib/ai-video-models.ts`.
   - Image-to-video; source image required.
   - 480p (`832x480`) or 720p (`1280x720`).
   - Approximately 5 or 10 seconds at 16 fps.
+  - Production requests currently favor fast playground iteration with 20
+    inference steps; use 480p / 5 seconds for the quickest image-guided test.
   - Runtime URL: `WAN22_MODAL_URL`.
   - Current Modal app/function: `video-models` / `wan_api`.
   - Current base route:
