@@ -252,11 +252,11 @@ Standard deployment target:
 npm run deploy
 ```
 
-This is the default rapid-iteration path: it publishes the existing validated
-`dist/` output without recompiling. Do not run a new build unless the user asks
-for a recompile.
+When the user says **deploy**, first determine whether source changed after the
+existing validated `dist/` build. Recompile when needed; otherwise reuse
+`dist/`. Do not require the user to separately say **compile**.
 
-For an explicitly requested recompile:
+When source changed, compile and deploy with:
 
 ```bash
 npm run deploy:recompile
