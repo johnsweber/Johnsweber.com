@@ -140,6 +140,14 @@ test("separates picture and video creation models", async () => {
     new URL("../lib/ai-picture-models.ts", import.meta.url),
     "utf8",
   );
+  const pictureDimensions = [
+    ...pictureModels.matchAll(/\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}/g),
+  ];
+  assert.ok(pictureDimensions.length >= 9);
+  for (const [, width, height] of pictureDimensions) {
+    assert.equal(Number(width) % 32, 0);
+    assert.equal(Number(height) % 32, 0);
+  }
   const pictureSource = `${source}\n${pictureModels}`;
   assert.match(source, /Creation type/);
   assert.match(source, /> Picture/);

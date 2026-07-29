@@ -211,7 +211,9 @@ Picture creation supports local ComfyUI models plus hosted Z-Image:
   same pending-media screen while the synchronous provider request completes
   and the private result is saved.
 - Picture models expose Fast, Medium, and Quality presets plus square,
-  landscape, and portrait canvases up to 1536 pixels.
+  landscape, and portrait canvases up to 1536 pixels. Every preset dimension
+  is aligned to the providers' required 32-pixel grid; Medium landscape is
+  `1280x704` and Medium portrait is `704x1280`.
 - `npm run local-ai:start` starts ComfyUI, the authenticated local gateway, and
   a Cloudflare Quick Tunnel, then updates the encrypted Worker URL/token. The
   tunnel and generator remain available only while this computer and those

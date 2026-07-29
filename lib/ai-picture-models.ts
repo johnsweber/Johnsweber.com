@@ -55,7 +55,7 @@ export const PICTURE_ASPECTS = {
     label: "Landscape",
     dimensions: {
       fast: { width: 1024, height: 576 },
-      medium: { width: 1280, height: 720 },
+      medium: { width: 1280, height: 704 },
       quality: { width: 1536, height: 864 },
     },
   },
@@ -63,7 +63,7 @@ export const PICTURE_ASPECTS = {
     label: "Portrait",
     dimensions: {
       fast: { width: 576, height: 1024 },
-      medium: { width: 720, height: 1280 },
+      medium: { width: 704, height: 1280 },
       quality: { width: 864, height: 1536 },
     },
   },
