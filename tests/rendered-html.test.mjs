@@ -314,10 +314,30 @@ test("offers persistent main and new site themes", async () => {
   assert.match(navigation, /<strong>Theme<\/strong>/);
   assert.match(navigation, /value: "main", label: "Main"/);
   assert.match(navigation, /value: "new", label: "New"/);
-  assert.match(navigation, /For now, it matches Main/);
+  assert.match(navigation, /Luminous Workbench/);
   assert.match(theme, /localStorage/);
   assert.match(theme, /dataset\.siteTheme/);
   assert.match(layout, /<SiteThemeController \/>/);
+});
+
+test("renders the Luminous Workbench new-theme experience", async () => {
+  const home = await readFile(
+    new URL("../app/page.tsx", import.meta.url),
+    "utf8",
+  );
+  const styles = await readFile(
+    new URL("../app/globals.css", import.meta.url),
+    "utf8",
+  );
+  assert.match(home, /function LuminousHome/);
+  assert.match(home, /Let&apos;s explore what we can build together/);
+  assert.match(home, /THE THROUGHLINE/);
+  assert.match(home, /RENDER LAB/);
+  assert.match(home, /OPEN INVITATION/);
+  assert.match(home, /luminous-workbench-moodboard\.png/);
+  assert.match(styles, /Luminous Workbench/);
+  assert.match(styles, /:root\[data-site-theme="new"\]/);
+  assert.match(styles, /--font-playfair/);
 });
 
 test("normalizes structured Modal responses before D1 writes", async () => {

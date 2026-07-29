@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { SiteNavigation } from "./site-navigation";
 import { HeroLogicImage } from "./hero-logic-image";
+import { useSiteTheme } from "./site-theme";
 
 type ProbeResult = {
   ok?: boolean;
@@ -62,7 +63,138 @@ const careerHighlights = [
   },
 ];
 
+function LuminousHome({
+  probe,
+  running,
+  runGpuProbe,
+}: {
+  probe: ProbeResult | null;
+  running: boolean;
+  runGpuProbe: () => void;
+}) {
+  return (
+    <main id="top" className="luminous-site">
+      <SiteNavigation />
+
+      <section className="lw-hero">
+        <div className="lw-intro">
+          <div className="lw-kicker"><span /> LUMINOUS WORKBENCH</div>
+          <h1>Let&apos;s explore what we can build together.</h1>
+          <p>A résumé story, a working lab, and an open invitation.</p>
+          <div className="lw-intro-actions">
+            <Link href="/portfolio">Selected work <span>↗</span></Link>
+            <Link href="/resume">Résumé <span>↗</span></Link>
+          </div>
+          <nav className="lw-journey" aria-label="Homepage journey">
+            <a href="#throughline"><b>01</b><span>The throughline</span></a>
+            <a href="#render-lab"><b>02</b><span>Render lab</span></a>
+            <a href="#open-invitation"><b>03</b><span>Open invitation</span></a>
+          </nav>
+          <div className="lw-circuit-seed" aria-hidden="true"><i /><i /><i /><i /></div>
+        </div>
+
+        <article className="lw-feature" id="throughline">
+          <header><span>01</span><strong>THE THROUGHLINE</strong><small>CLARITY &amp; DIRECTION</small></header>
+          <div className="lw-feature-image">
+            <img src="/luminous-throughline.png" alt="John and his dog following a glowing technical throughline through a watercolor workshop" />
+          </div>
+          <blockquote>Good work starts with care.<br />Great work follows the throughline.</blockquote>
+          <div className="lw-feature-links">
+            <Link href="/portfolio">Portfolio <span>↗</span></Link>
+            <Link href="/resume">Career history <span>↗</span></Link>
+          </div>
+        </article>
+      </section>
+
+      <section className="lw-story-grid section" id="work">
+        <article className="lw-story" id="render-lab">
+          <header><span>02</span><strong>RENDER LAB</strong><small>CRAFT &amp; EXPLORATION</small></header>
+          <img src="/luminous-render-lab.png" alt="John and his dog working together at a luminous AI workbench" />
+          <div className="lw-story-copy">
+            <h2>Make advanced technology tangible.</h2>
+            <p>Private generative media tools, real infrastructure, and experiments designed to be understood through use.</p>
+            <Link href="/experiments/ai-video">Enter AI Video <span>↗</span></Link>
+          </div>
+        </article>
+
+        <article className="lw-story" id="open-invitation">
+          <header><span>03</span><strong>OPEN INVITATION</strong><small>CONNECTION &amp; POSSIBILITY</small></header>
+          <img src="/luminous-open-invitation.png" alt="John and his dog exploring a glowing circuit seed in a blue watercolor landscape" />
+          <div className="lw-story-copy">
+            <h2>Start with a small spark.</h2>
+            <p>Bring an ambitious idea, a hard-to-explain system, or a product that needs a clearer path forward.</p>
+            <a href="mailto:johnsweber@gmail.com">Start a conversation <span>↗</span></a>
+          </div>
+        </article>
+      </section>
+
+      <section className="lw-career section" id="career">
+        <div className="lw-section-heading">
+          <span>THE PATH</span>
+          <h2>Design, technology, and delivery—connected.</h2>
+          <p>Two decades of turning complexity into useful products, clear interfaces, and teams that can move.</p>
+        </div>
+        <div className="lw-career-grid">
+          {careerHighlights.map((highlight, index) => (
+            <article key={highlight.marker}>
+              <div className="lw-path-number"><span>0{index + 1}</span><i /></div>
+              <small>{highlight.label}</small>
+              <strong>{highlight.marker}</strong>
+              <h3>{highlight.title}</h3>
+              <p>{highlight.copy}</p>
+            </article>
+          ))}
+        </div>
+        <div className="lw-career-actions">
+          <Link href="/portfolio">Explore the portfolio <span>↗</span></Link>
+          <Link href="/resume">Read the résumé <span>↗</span></Link>
+        </div>
+      </section>
+
+      <section className="lw-lab section" id="lab">
+        <div className="lw-lab-copy">
+          <span>LIVE WORKBENCH</span>
+          <h2>From the edge to a GPU, without the mystery.</h2>
+          <p>This protected probe makes the infrastructure visible: request, private gateway, on-demand compute, and a result you can inspect.</p>
+          <div className="lw-route" aria-label="Request route">
+            <span>YOU</span><b>→</b><span>EDGE</span><b>→</b><span>GPU</span>
+          </div>
+        </div>
+        <div className="lw-probe">
+          <header><span>GPU PULSE</span><span className="lw-on-demand"><i /> ON DEMAND</span></header>
+          <div className="lw-probe-circuit" aria-hidden="true"><i /><i /><i /><i /><i /></div>
+          <button type="button" onClick={runGpuProbe} disabled={running}>
+            {running ? "Waking GPU…" : "Run GPU probe"}
+          </button>
+          <div className="lw-probe-output" aria-live="polite">
+            {!probe && !running && <span>Idle. No GPU compute is running.</span>}
+            {running && <span>Cold starts can take a moment…</span>}
+            {probe?.ok && <><strong>{probe.gpu ?? "GPU online"}</strong><span>{probe.memory_mb ? `${probe.memory_mb} MB memory · Modal response verified` : "Modal response verified"}</span></>}
+            {probe && !probe.ok && <span>{probe.message ?? probe.error ?? "The GPU probe is not connected yet."}</span>}
+          </div>
+        </div>
+      </section>
+
+      <section className="lw-moodboard section" id="about">
+        <div>
+          <span>THE VISUAL SYSTEM</span>
+          <h2>Watercolor warmth. Technical precision.</h2>
+          <p>Luminous Workbench combines tactile paper, editorial typography, midnight blue, and ember-orange circuitry—a professional space that still feels exploratory and human.</p>
+        </div>
+        <img src="/luminous-workbench-moodboard.png" alt="Luminous Workbench watercolor technology mood board" />
+      </section>
+
+      <footer className="lw-footer">
+        <a href="#top" aria-label="Back to top">JW</a>
+        <span>A SMALL SPARK · A CLEAR PATH · SHARED WORK</span>
+        <span>© {new Date().getFullYear()} JOHN WEBER</span>
+      </footer>
+    </main>
+  );
+}
+
 export default function Home() {
+  const { theme } = useSiteTheme();
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [running, setRunning] = useState(false);
 
@@ -77,6 +209,10 @@ export default function Home() {
     } finally {
       setRunning(false);
     }
+  }
+
+  if (theme === "new") {
+    return <LuminousHome probe={probe} running={running} runGpuProbe={runGpuProbe} />;
   }
 
   return (

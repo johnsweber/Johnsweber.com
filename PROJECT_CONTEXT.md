@@ -77,9 +77,12 @@ Public/general:
   It is stored per user in browser `sessionStorage`, defaults to Demo (`false`)
   in every new browser session, and is sent to generation APIs through the
   `x-johnsweber-use-production` header.
-- The grid navigation includes a device-local Theme selector. `Main` is the
-  original visual system; `New` currently renders the same design as a
-  separately addressable theme so it can evolve without changing Main.
+- The grid navigation includes a device-local Theme selector. `Main` preserves
+  the original bright Curious Lab system. `New` is the Luminous Workbench
+  direction: editorial Playfair typography, tactile ivory paper, midnight
+  blue watercolor, ember-orange circuitry, and the three-part Throughline,
+  Render Lab, and Open Invitation homepage journey. Its approved mood board
+  and matching hero scenes live as static assets under `public/luminous-*`.
   Selection persists in browser `localStorage` and is applied through the root
   `data-site-theme` attribute across routes.
 - Navigation shows login when signed out and account details/management when

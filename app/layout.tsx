@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Playfair_Display } from "next/font/google";
 import { AuthProvider } from "./auth-provider";
 import { ImageEdgeBursts } from "./image-edge-bursts";
 import { SiteThemeController } from "./site-theme";
@@ -12,6 +12,11 @@ const geistSans = Geist({
 
 const geistMono = Geist_Mono({
   variable: "--font-geist-mono",
+  subsets: ["latin"],
+});
+
+const playfair = Playfair_Display({
+  variable: "--font-playfair",
   subsets: ["latin"],
 });
 
@@ -49,7 +54,7 @@ export default function RootLayout({
 
   return (
     <html lang="en">
-      <body className={`${geistSans.variable} ${geistMono.variable}`}>
+      <body className={`${geistSans.variable} ${geistMono.variable} ${playfair.variable}`}>
         <SiteThemeController />
         <ImageEdgeBursts />
         <AuthProvider publishableKey={publishableKey}>{children}</AuthProvider>

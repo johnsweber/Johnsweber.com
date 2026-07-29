@@ -137,7 +137,7 @@ function ThemeControl() {
     <div className="production-mode-control theme-mode-control">
       <div>
         <strong>Theme</strong>
-        <small>{theme === "new" ? "A new look is coming. For now, it matches Main." : "The original site color and motion system."}</small>
+        <small>{theme === "new" ? "Luminous Workbench: watercolor warmth and technical precision." : "The original bright Curious Lab color and motion system."}</small>
       </div>
       <div className="production-mode-pill" role="group" aria-label="Site theme">
         {themes.map(option => (
