@@ -184,6 +184,11 @@ Video models are declared in `lib/ai-video-models.ts`.
   - One-click presets: Test uses those minimums; Fast uses `768x512`, 121
     frames at 24 fps; Max uses `1920x1088`, 241 frames at 24 fps.
   - Runtime URL: `LTX23_MODAL_URL`.
+  - Current Modal app/function: `ltx-2-3` / `ltx_api`.
+  - Current base route:
+    `https://johnsweber--ltx-2-3-ltx-api.modal.run`.
+  - Hugging Face access is granted for both the LTX-2.3 weights and its gated
+    Gemma 3 text-encoder dependency.
 
 Picture creation uses the protected local GPU/ComfyUI connection:
 
@@ -197,7 +202,8 @@ Picture creation uses the protected local GPU/ComfyUI connection:
   token live in ignored `.local-ai/`.
 
 Video creation does not expose the local GPU. Wan accepts an uploaded JPG, PNG,
-or WebP source image up to 12 MB; LTX creates directly from text. Browser
+or WebP source image up to 12 MB; LTX accepts the same formats optionally and
+otherwise creates directly from text. Browser
 uploads larger than 1.5 MB are resized and JPEG-compressed before submission
 to stay below the request gateway limit while the original remains local.
 
