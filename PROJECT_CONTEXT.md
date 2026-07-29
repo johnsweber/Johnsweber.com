@@ -207,9 +207,9 @@ Picture creation supports local ComfyUI models plus hosted Z-Image:
 - Z-Image Turbo 6B (`zimage`) runs on Modal and supports both text-to-image
   creation and reference-image editing.
 - Z-Image validates an explicit JSON request body before invoking the GPU.
-  Picture submission shows the selected/reference preview, a settings-based
-  estimate, progress bar, and remaining-time estimate while the synchronous
-  provider request completes and the private result is saved.
+  Initial picture submission and reopening the pending library item share the
+  same pending-media screen while the synchronous provider request completes
+  and the private result is saved.
 - Picture models expose Fast, Medium, and Quality presets plus square,
   landscape, and portrait canvases up to 1536 pixels.
 - `npm run local-ai:start` starts ComfyUI, the authenticated local gateway, and

@@ -250,8 +250,8 @@ test("defaults generation to session-scoped demo mode", async () => {
   assert.match(aiVideo, /useProduction && videoModel\.supportsImage/);
   assert.match(aiVideo, /readApiResponse/);
   assert.match(aiVideo, /unreadable response/);
-  assert.match(aiVideo, /Picture generation progress/);
-  assert.match(aiVideo, /About \$\{remaining\}s remaining/);
+  assert.match(aiVideo, /function PendingMediaPanel/);
+  assert.match(aiVideo, /<PendingMediaPanel mediaType="picture" \/>/);
 });
 
 test("normalizes structured Modal responses before D1 writes", async () => {

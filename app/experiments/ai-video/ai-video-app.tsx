@@ -922,60 +922,21 @@ function ProgressPanel({ initialJob, sceneId }: { initialJob: PublicJob; sceneId
   );
 }
 
-function PicturePending({
-  modelKey,
-  preset,
-  reference,
+function PendingMediaPanel({
+  mediaType,
+  errorMessage,
 }: {
-  modelKey: PictureModelKey;
-  preset: PicturePresetKey;
-  reference: PublicMedia | null;
+  mediaType: "picture" | "video";
+  errorMessage?: string | null;
 }) {
-  const [elapsed, setElapsed] = useState(0);
-  const estimate = AI_PICTURE_MODELS[modelKey].presets[preset].estimateSeconds;
-  useEffect(() => {
-    const started = Date.now();
-    const timer = window.setInterval(
-      () => setElapsed((Date.now() - started) / 1000),
-      500,
-    );
-    return () => window.clearInterval(timer);
-  }, []);
-  const progress = Math.min(94, Math.max(4, Math.round((elapsed / estimate) * 88)));
-  const remaining = Math.max(0, Math.ceil(estimate - elapsed));
   return (
     <section className="aiv-progress-panel">
       <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
-      <p className="aiv-kicker">CREATING · {progress}%</p>
-      <h1>Your picture is taking shape.</h1>
-      {reference ? (
-        <div className="aiv-picture-progress-preview">
-          <PrivateMediaAsset mediaId={reference.id} mediaType="picture" thumbnail>
-            <PictureIcon aria-hidden="true" />
-          </PrivateMediaAsset>
-          <span>Reference preview</span>
-        </div>
-      ) : (
-        <div className="aiv-picture-progress-preview aiv-picture-preview-placeholder">
-          <PictureIcon aria-hidden="true" />
-          <span>{AI_PICTURE_MODELS[modelKey].name}</span>
-        </div>
-      )}
-      <div
-        className="aiv-progress-track"
-        role="progressbar"
-        aria-label="Picture generation progress"
-        aria-valuemin={0}
-        aria-valuemax={100}
-        aria-valuenow={progress}
-      >
-        <span style={{ width: `${progress}%` }} />
-      </div>
-      <div className="aiv-progress-meta">
-        <strong>{progress}%</strong>
-        <span>{remaining ? `About ${remaining}s remaining` : "Finishing and saving…"}</span>
-      </div>
-      <p>You can leave this screen after the request is accepted; the result is saved privately to your library.</p>
+      <p className="aiv-kicker">PENDING</p>
+      <h1>Your {mediaType} was submitted.</h1>
+      <p>{errorMessage || "It will appear here as soon as processing finishes."}</p>
+      <div className="aiv-picture-loader" aria-label="Media generation pending"><span /></div>
+      <div className="aiv-actions"><Link href="/experiments/ai-video/library"><Library aria-hidden="true" /> Library</Link></div>
     </section>
   );
 }
@@ -1325,11 +1286,7 @@ function CreateView() {
     return (
       <main className="aiv-page">
         <ExperimentHeader />
-        <PicturePending
-          modelKey={pictureModel}
-          preset={picturePreset}
-          reference={editMedia}
-        />
+        <PendingMediaPanel mediaType="picture" />
         <BottomNavigation />
       </main>
     );
@@ -2143,14 +2100,10 @@ function MediaView({
           </div>
         </section>
       ) : isPending(media.status) ? (
-        <section className="aiv-progress-panel">
-          <span className="aiv-progress-icon pending"><Clock3 aria-hidden="true" /></span>
-          <p className="aiv-kicker">PENDING</p>
-          <h1>Your {media.mediaType} was submitted.</h1>
-          <p>{media.errorMessage || "It will appear here as soon as processing finishes."}</p>
-          <div className="aiv-picture-loader" aria-label="Media generation pending"><span /></div>
-          <div className="aiv-actions"><Link href="/experiments/ai-video/library"><Library aria-hidden="true" /> Library</Link></div>
-        </section>
+        <PendingMediaPanel
+          mediaType={media.mediaType === "video" ? "video" : "picture"}
+          errorMessage={media.errorMessage}
+        />
       ) : media.status === "failed" ? (
         <section className="aiv-player-message"><strong>Generation stopped</strong><span>{media.errorMessage || "This item could not be completed."}</span><Link href="/experiments/ai-video/create">Try again</Link></section>
       ) : (
