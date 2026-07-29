@@ -362,6 +362,18 @@ export async function getAiVideoJob(id: string, userId: string) {
     .first<AiVideoJob>();
 }
 
+export async function getLatestAiVideoJobForModel(modelKey: string) {
+  return (await getAiVideoDb())
+    .prepare(`
+      SELECT * FROM ai_video_jobs
+      WHERE model_key = ? AND modal_call_id IS NOT NULL
+      ORDER BY updated_at DESC
+      LIMIT 1
+    `)
+    .bind(modelKey)
+    .first<AiVideoJob>();
+}
+
 export async function updateAiVideoJob(
   id: string,
   userId: string,

@@ -1874,6 +1874,22 @@ body.menu-open { overflow: hidden; }
 .aiv-range-control output { min-width: 48px; padding: .22rem .45rem; border-radius: 999px; color: white; background: var(--aiv-violet); text-align: center; font-size: .72rem; font-weight: 800; }
 .aiv-range-control input { width: 100%; accent-color: var(--aiv-violet); cursor: pointer; }
 .aiv-range-control small { color: var(--aiv-muted); font-size: .65rem; line-height: 1.35; }
+.aiv-live-estimate { position: fixed; z-index: 25; top: 98px; right: max(1rem,calc((100vw - 1180px) / 2)); padding: .65rem .75rem; display: flex; align-items: center; gap: .8rem; border: 1px solid rgba(104,69,223,.2); border-radius: 18px; color: var(--aiv-ink); background: rgba(255,253,248,.9); box-shadow: 0 14px 38px rgba(31,24,57,.14); backdrop-filter: blur(18px); }
+.aiv-live-estimate > div { display: flex; align-items: center; gap: .55rem; }
+.aiv-live-estimate > div > svg { width: 18px; color: var(--aiv-violet); }
+.aiv-live-estimate > div > span { display: flex; flex-direction: column; line-height: 1.15; }
+.aiv-live-estimate small { color: var(--aiv-muted); font-size: .55rem; letter-spacing: .06em; text-transform: uppercase; }
+.aiv-live-estimate strong { font-size: .78rem; }
+.aiv-gpu-temperature { padding: .38rem .55rem; display: inline-flex; align-items: center; gap: .38rem; border-radius: 999px; color: var(--aiv-muted); background: rgba(22,18,40,.06); font-size: .64rem; font-weight: 800; white-space: nowrap; }
+.aiv-gpu-temperature i { width: 7px; height: 7px; border-radius: 50%; background: #9a95a6; box-shadow: 0 0 0 3px rgba(154,149,166,.12); }
+.aiv-gpu-temperature.warm { color: #0e7c59; background: rgba(21,155,114,.1); }
+.aiv-gpu-temperature.warm i { background: #159b72; box-shadow: 0 0 0 3px rgba(21,155,114,.14); }
+.aiv-gpu-temperature.cold { color: #386eb8; background: rgba(55,126,220,.1); }
+.aiv-gpu-temperature.cold i { background: #4b8ee8; box-shadow: 0 0 0 3px rgba(75,142,232,.14); }
+.aiv-gpu-temperature.checking i { animation: aivPulse 1.2s ease-in-out infinite; }
+.aiv-gpu-temperature.demo { color: #7c5a20; background: rgba(240,168,47,.12); }
+.aiv-gpu-temperature.demo i { background: #e4a12d; }
+@keyframes aivPulse { 50% { opacity: .35; transform: scale(.78); } }
 .aiv-create-submit { padding-top: 2rem; display: flex; align-items: center; justify-content: space-between; gap: 2rem; }
 .aiv-create-submit > div { display: flex; align-items: center; gap: .65rem; max-width: 560px; color: var(--aiv-muted); font-size: .78rem; line-height: 1.4; }
 .aiv-create-submit > div svg { flex: none; width: 18px; }
@@ -2099,6 +2115,7 @@ body.menu-open { overflow: hidden; }
   .aiv-generation-overlay { padding: 1.15rem; }
   .aiv-generation-copy h1 { font-size: clamp(2.25rem,12vw,3.7rem); }
   .aiv-generation-progress .aiv-progress-meta { gap: .7rem; align-items: flex-start; flex-direction: column; }
+  .aiv-live-estimate { top: 76px; right: .75rem; left: .75rem; justify-content: space-between; border-radius: 16px; }
 }
 
 .project-launch {

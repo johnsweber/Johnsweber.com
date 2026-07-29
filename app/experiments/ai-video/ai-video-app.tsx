@@ -51,6 +51,7 @@ type MediaType = CreationType | "scene";
 type MediaStatus = "submitted" | "pending" | "complete" | "failed";
 type PictureModelKey = "base" | "animagine";
 type GenerationPreset = "test" | "fast" | "max" | "custom";
+type GpuTemperature = "checking" | "warm" | "cold" | "unknown";
 
 const PICTURE_MODELS = {
   base: {
@@ -135,6 +136,13 @@ function formatRemaining(job: PublicJob) {
   );
   if (remaining < 60) return `About ${remaining} seconds remaining`;
   return `About ${Math.ceil(remaining / 60)} minutes remaining`;
+}
+
+function formatEstimate(seconds: number) {
+  if (seconds < 60) return `about ${Math.max(5, Math.round(seconds / 5) * 5)} sec`;
+  const minutes = seconds / 60;
+  if (minutes < 10) return `about ${minutes.toFixed(minutes < 2 ? 1 : 0)} min`;
+  return `about ${Math.round(minutes)} min`;
 }
 
 async function readApiResponse<T extends { error?: string }>(
@@ -944,6 +952,7 @@ function CreateView() {
   const [guidanceScale, setGuidanceScale] = useState(0);
   const [videoCrf, setVideoCrf] = useState(28);
   const [generationPreset, setGenerationPreset] = useState<GenerationPreset>("test");
+  const [gpuTemperature, setGpuTemperature] = useState<GpuTemperature>("checking");
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
@@ -956,8 +965,57 @@ function CreateView() {
   const [extendMedia, setExtendMedia] = useState<PublicMedia | null>(null);
   const [animateMedia, setAnimateMedia] = useState<PublicMedia | null>(null);
   const preview = useMemo(() => (source ? URL.createObjectURL(source) : ""), [source]);
+  const renderEstimateSeconds = useMemo(() => {
+    const baseEstimate = videoModelKey === "wan22"
+      ? quality === "720p" ? 600 : 300
+      : 180;
+    const basePixels = videoModelKey === "wan22"
+      ? quality === "720p" ? 1280 * 720 : 832 * 480
+      : 768 * 512;
+    const pixels = videoModelKey === "wan22"
+      ? basePixels
+      : outputWidth * outputHeight;
+    const baseFrames = videoModelKey === "wan22" ? 81 : 121;
+    const computeScale =
+      (pixels / basePixels) *
+      (numFrames / baseFrames) *
+      (videoModelKey === "wan22" ? inferenceSteps / 20 : 1);
+    return Math.max(20, Math.round(baseEstimate * computeScale));
+  }, [inferenceSteps, numFrames, outputHeight, outputWidth, quality, videoModelKey]);
+  const estimatedTotalSeconds =
+    renderEstimateSeconds + (useProduction && gpuTemperature === "cold" ? 180 : 0);
 
   useEffect(() => () => { if (preview) URL.revokeObjectURL(preview); }, [preview]);
+  useEffect(() => {
+    if (creationType !== "video" || !useProduction) {
+      setGpuTemperature("unknown");
+      return;
+    }
+    let active = true;
+    let timer = 0;
+    const check = async () => {
+      try {
+        const response = await authorizedFetch(
+          `/api/experiments/ai-video/capacity?model=${videoModelKey}`,
+        );
+        const data = await readApiResponse<{ state?: "warm" | "cold"; error?: string }>(
+          response,
+          "GPU status unavailable",
+        );
+        if (active) setGpuTemperature(response.ok && data.state ? data.state : "unknown");
+      } catch {
+        if (active) setGpuTemperature("unknown");
+      } finally {
+        if (active) timer = window.setTimeout(check, 30_000);
+      }
+    };
+    setGpuTemperature("checking");
+    void check();
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [authorizedFetch, creationType, useProduction, videoModelKey]);
   useEffect(() => {
     if (!extendMediaId) return;
     authorizedFetch(`/api/experiments/ai-video/media/${extendMediaId}`)
@@ -1417,6 +1475,29 @@ function CreateView() {
         </section>
 
         {error && <p className="aiv-form-error" role="alert">{error}</p>}
+        {creationType === "video" && (
+          <aside className="aiv-live-estimate" aria-live="polite">
+            <div>
+              <Clock3 aria-hidden="true" />
+              <span>
+                <small>Estimated generation</small>
+                <strong>{useProduction ? formatEstimate(estimatedTotalSeconds) : "Instant demo"}</strong>
+              </span>
+            </div>
+            <span className={`aiv-gpu-temperature ${useProduction ? gpuTemperature : "demo"}`}>
+              <i />
+              {!useProduction
+                ? "GPU off"
+                : gpuTemperature === "warm"
+                  ? "GPU warm"
+                  : gpuTemperature === "cold"
+                    ? "GPU cold"
+                    : gpuTemperature === "checking"
+                      ? "Checking GPU"
+                      : "GPU unknown"}
+            </span>
+          </aside>
+        )}
         <div className="aiv-create-submit">
           <div><Clock3 aria-hidden="true" /><span>After submission, pending work appears immediately in your private library.</span></div>
           <button

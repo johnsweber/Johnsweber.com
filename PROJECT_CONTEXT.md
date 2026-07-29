@@ -117,6 +117,7 @@ AI Video APIs:
 
 - `GET/POST /api/experiments/ai-video/jobs`
 - `GET /api/experiments/ai-video/jobs/:id`
+- `GET /api/experiments/ai-video/capacity?model=:modelKey`
 - `GET /api/experiments/ai-video/jobs/:id/thumbnail`
 - `GET /api/experiments/ai-video/jobs/:id/video`
 - `POST /api/experiments/ai-video/local-source`
@@ -210,6 +211,10 @@ Generation environment:
 - Production must be explicitly enabled for the current user/browser session.
   Production video requests use the configured Wan/LTX Modal endpoints;
   Production pictures continue to use the configured local ComfyUI gateway.
+- The Create screen keeps a settings-based generation estimate visible. In
+  Production it also reports the selected provider as likely Warm or Cold from
+  active/recent Modal-backed jobs and the providers' five-minute scaledown
+  window. The capacity check never invokes or warms a GPU.
 - The toggle applies to generative model calls. Deterministic operations on
   already-saved media, including scene playback and CPU/FFmpeg export, always
   operate on the user's actual files.

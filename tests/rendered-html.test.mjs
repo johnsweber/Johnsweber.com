@@ -145,10 +145,30 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Highest-quality supported output/);
   assert.match(source, /applyGenerationPreset/);
   assert.match(source, /setGenerationPreset\("custom"\)/);
+  assert.match(source, /Estimated generation/);
+  assert.match(source, /GPU warm/);
+  assert.match(source, /renderEstimateSeconds/);
   assert.doesNotMatch(source, /videoModel\.supportsImage && useProduction && \(/);
   assert.match(source, /onSubmit=\{submit\} noValidate/);
   assert.doesNotMatch(source, /disabled=\{\s*submitting \|\|\s*!prompt/);
   assert.doesNotMatch(source, /sourceMode|Generate source locally/);
+});
+
+test("reports recent GPU capacity without warming a model", async () => {
+  const capacity = await readFile(
+    new URL("../app/api/experiments/ai-video/capacity/route.ts", import.meta.url),
+    "utf8",
+  );
+  const database = await readFile(
+    new URL("../db/ai-video.ts", import.meta.url),
+    "utf8",
+  );
+  assert.match(capacity, /WARM_WINDOW_MS = 5 \* 60 \* 1_000/);
+  assert.match(capacity, /active-job/);
+  assert.match(capacity, /Cache-Control/);
+  assert.doesNotMatch(capacity, /fetch\(|spawn|warmup/);
+  assert.match(database, /getLatestAiVideoJobForModel/);
+  assert.match(database, /modal_call_id IS NOT NULL/);
 });
 
 test("deletes only user-owned media records and stored objects", async () => {
