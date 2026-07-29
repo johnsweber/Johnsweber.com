@@ -175,7 +175,9 @@ Video models are declared in `lib/ai-video-models.ts`.
   - `/generate` accepts the generation request as a JSON body; the Modal route
     explicitly validates that body before spawning the GPU call.
 - LTX 2.3
-  - Text-to-video with synchronized generated audio.
+  - Text-to-video or optional image-to-video with synchronized generated audio.
+  - A JPG, PNG, or WebP reference may be uploaded or selected from the user's
+    private picture library; omitting it keeps the text-to-video flow.
   - Creator exposes 256–1920 width and height in 32-pixel increments,
     9–241 frames in `8n+1` increments, 1–50 fps, and a deterministic seed.
   - Lowest-compute defaults are `256x256`, 9 frames, 1 fps, and seed 0.

@@ -5,6 +5,7 @@ export const AI_VIDEO_MODELS = {
     description: "Image-guided motion with strong composition retention.",
     mode: "image-to-video",
     supportsImage: true,
+    requiresImage: true,
     supportsAudio: false,
     endpointEnv: "WAN22_MODAL_URL",
     qualities: {
@@ -25,9 +26,10 @@ export const AI_VIDEO_MODELS = {
   ltx23: {
     key: "ltx23",
     name: "LTX 2.3",
-    description: "Fast text-guided video with synchronized generated audio.",
-    mode: "text-to-video",
-    supportsImage: false,
+    description: "Fast text- or image-guided video with synchronized generated audio.",
+    mode: "text-or-image-to-video",
+    supportsImage: true,
+    requiresImage: false,
     supportsAudio: true,
     endpointEnv: "LTX23_MODAL_URL",
     qualities: {

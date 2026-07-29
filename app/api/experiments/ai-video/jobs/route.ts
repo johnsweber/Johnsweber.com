@@ -233,7 +233,9 @@ export async function POST(request: Request) {
           customMetadata: { userId: user.id, experiment: "ai-video", referenceMediaId: referenceMedia.id },
         });
       } else if (!(source instanceof File) || !source.size) {
-        return Response.json({ error: "Wan 2.2 requires a source image." }, { status: 400 });
+        if (model.requiresImage) {
+          return Response.json({ error: `${model.name} requires a source image.` }, { status: 400 });
+        }
       } else if (!["image/jpeg", "image/png", "image/webp"].includes(source.type)) {
         return Response.json({ error: "Use a JPG, PNG, or WebP image." }, { status: 400 });
       } else if (source.size > 12 * 1024 * 1024) {
@@ -309,7 +311,7 @@ export async function POST(request: Request) {
       source_object_key: sourceObjectKey,
       source_file_name: sourceFileName,
       source_provider:
-        !model.supportsImage
+        !sourceObjectKey
           ? "none"
           : sourceProvider === "local"
             ? "local"
@@ -414,6 +416,12 @@ export async function POST(request: Request) {
             num_frames: frames,
             frame_rate: fps,
             seed: seedValue,
+            ...(imageBytes
+              ? {
+                  image_base64: Buffer.from(imageBytes).toString("base64"),
+                  image_strength: 1,
+                }
+              : {}),
           };
 
     const modalResponse = await fetch(`${endpoint}/generate`, {

@@ -1095,7 +1095,6 @@ function CreateView() {
     setInferenceSteps(1);
     setGuidanceScale(0);
     setVideoCrf(28);
-    if (next === "ltx23") setSource(null);
   }
 
   function applyGenerationPreset(preset: Exclude<GenerationPreset, "custom">) {
@@ -1312,7 +1311,7 @@ function CreateView() {
                   const option = AI_VIDEO_MODELS[key];
                   return (
                     <button type="button" key={key} className={videoModelKey === key ? "selected" : ""} onClick={() => chooseVideoModel(key)}>
-                      <span>{option.supportsImage ? "IMAGE-GUIDED" : "TEXT + AUDIO"}</span>
+                      <span>{option.requiresImage ? "IMAGE-GUIDED" : "TEXT / IMAGE + AUDIO"}</span>
                       <strong>{option.name}</strong>
                       <small>{option.description}</small>
                       {videoModelKey === key && <Check aria-hidden="true" />}
@@ -1329,22 +1328,22 @@ function CreateView() {
               <strong>
                 {creationType === "picture"
                   ? "Describe the picture"
-                  : videoModel.supportsImage
-                    ? "Add an image and describe the motion"
-                    : "Describe the whole scene"}
+                    : videoModel.requiresImage
+                      ? "Add an image and describe the motion"
+                    : "Optionally add an image and describe the scene"}
               </strong>
               <small>
                 {creationType === "picture"
                   ? useProduction
                     ? "Your connected picture model will create a private 1024 × 576 image."
                     : "Demo mode returns a free example picture for your private library."
-                  : videoModel.supportsImage
+                  : videoModel.requiresImage
                     ? useProduction
                       ? "Upload a JPG, PNG, or WebP up to 12 MB."
                       : "Choose and preview a reference image. Demo mode still returns a sample video."
                     : useProduction
-                      ? "LTX creates from text and includes audio."
-                      : "Demo mode returns a free example video; no source image is needed."}
+                      ? "LTX accepts an optional reference image and generates synchronized audio."
+                      : "Optionally preview a reference image. Demo mode returns a free example video."}
               </small>
             </div>
           </div>

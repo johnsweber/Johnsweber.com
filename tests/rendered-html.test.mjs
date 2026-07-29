@@ -144,6 +144,7 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Wan \+ LTX/);
   assert.match(source, /Choose reference image/);
   assert.match(source, /Choose and preview a reference image/);
+  assert.match(source, /LTX accepts an optional reference image/);
   assert.match(source, /Animate picture/);
   assert.match(source, /referenceMediaId/);
   assert.match(source, /Generation preset/);
@@ -257,6 +258,7 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /body: JSON\.stringify\(payload\)/);
   assert.match(source, /referenceMedia\.content_object_key/);
   assert.match(source, /The reference picture is unavailable/);
+  assert.match(source, /image_strength: 1/);
 });
 
 test("supports saved last frames, extendable scenes, and CPU exports", async () => {
