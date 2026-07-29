@@ -770,26 +770,36 @@ function CreateView() {
               </small>
             </div>
           </div>
-          {creationType === "video" && videoModel.supportsImage && useProduction && extendMedia ? (
-            <div className="aiv-upload has-preview aiv-extend-source">
+          {creationType === "video" && videoModel.supportsImage && extendMedia ? (
+            <div className="aiv-reference-block">
+              <span className="aiv-reference-label"><PictureIcon aria-hidden="true" /> Reference image</span>
+              <div className="aiv-upload has-preview aiv-extend-source">
               <PrivateMediaAsset mediaId={extendMedia.id} mediaType="picture" thumbnail>
                 <Clock3 aria-hidden="true" />
               </PrivateMediaAsset>
               <strong>Saved last frame</strong>
-              <span>This exact frame starts the next clip.</span>
+              <span>
+                {useProduction
+                  ? "This exact frame starts the next clip."
+                  : "Previewing the saved frame. Demo mode will return a sample result."}
+              </span>
+              </div>
             </div>
           ) : creationType === "video" && videoModel.supportsImage && useProduction && (
-            <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
-              {preview ? <img src={preview} alt="Selected source" /> : <Upload aria-hidden="true" />}
-              <strong>{source ? source.name : "Choose source image"}</strong>
-              <span>{source ? "Click to replace" : "The composition anchors the generated motion."}</span>
-              <input
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                onChange={(event) => setSource(event.target.files?.[0] || null)}
-                required
-              />
-            </label>
+            <div className="aiv-reference-block">
+              <span className="aiv-reference-label"><PictureIcon aria-hidden="true" /> Reference image</span>
+              <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
+                {preview ? <img src={preview} alt="Selected reference" /> : <Upload aria-hidden="true" />}
+                <strong>{source ? source.name : "Choose reference image"}</strong>
+                <span>{source ? "Preview ready · click to replace" : "The composition anchors the generated motion."}</span>
+                <input
+                  type="file"
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={(event) => setSource(event.target.files?.[0] || null)}
+                  required
+                />
+              </label>
+            </div>
           )}
           <label className="aiv-field">
             <span>{creationType === "picture" ? "Picture prompt" : "Video prompt"}</span>

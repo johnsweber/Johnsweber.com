@@ -222,6 +222,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     "utf8",
   );
   assert.match(app, /Extend video/);
+  assert.match(app, /Reference image/);
+  assert.match(app, /Previewing the saved frame/);
   assert.match(app, /function SceneView/);
   assert.match(app, /Export scene/);
   assert.match(database, /ai_video_scene_items/);

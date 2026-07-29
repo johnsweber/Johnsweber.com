@@ -1814,6 +1814,10 @@ body.menu-open { overflow: hidden; }
   background: rgba(104,69,223,.045);
   cursor: pointer;
 }
+.aiv-reference-block { margin-bottom: 1rem; }
+.aiv-reference-block .aiv-upload { margin-bottom: 0; }
+.aiv-reference-label { display: inline-flex; align-items: center; gap: .45rem; margin: 0 0 .6rem .15rem; color: var(--aiv-muted); font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.aiv-reference-label svg { width: 16px; height: 16px; color: var(--aiv-violet); }
 .aiv-upload > svg { width: 34px; height: 34px; }
 .aiv-upload > span { color: var(--aiv-muted); font-size: .84rem; }
 .aiv-upload input { position: absolute; width: 1px; height: 1px; opacity: 0; }
