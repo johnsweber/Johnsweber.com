@@ -122,6 +122,55 @@ export async function POST(request: Request) {
       return Response.json({ error: "Unknown model." }, { status: 400 });
     }
 
+    const numberField = (name: string, fallback: number) => {
+      const value = Number(form.get(name));
+      return Number.isFinite(value) ? value : fallback;
+    };
+    const width = modelKey === "ltx23"
+      ? numberField("outputWidth", 256)
+      : settings.quality.width;
+    const height = modelKey === "ltx23"
+      ? numberField("outputHeight", 256)
+      : settings.quality.height;
+    const frames = numberField("numFrames", 9);
+    const fps = numberField("frameRate", 1);
+    const inferenceSteps = numberField("inferenceSteps", 1);
+    const guidanceScale = numberField("guidanceScale", 0);
+    const videoCrf = numberField("videoCrf", 28);
+
+    if (
+      modelKey === "ltx23" &&
+      (!Number.isInteger(width) || !Number.isInteger(height) ||
+        width < 256 || width > 1920 || height < 256 || height > 1920 ||
+        width % 32 !== 0 || height % 32 !== 0)
+    ) {
+      return Response.json({ error: "LTX width and height must be 256–1920 pixels in 32-pixel increments." }, { status: 400 });
+    }
+    const maxFrames = modelKey === "wan22" ? 161 : 241;
+    const frameStep = modelKey === "wan22" ? 4 : 8;
+    if (!Number.isInteger(frames) || frames < 9 || frames > maxFrames || (frames - 1) % frameStep !== 0) {
+      return Response.json({ error: `${model.name} frame count must be 9–${maxFrames} in ${frameStep}-frame increments.` }, { status: 400 });
+    }
+    const maxFps = modelKey === "wan22" ? 30 : 50;
+    if (!Number.isInteger(fps) || fps < 1 || fps > maxFps) {
+      return Response.json({ error: `${model.name} frame rate must be 1–${maxFps} fps.` }, { status: 400 });
+    }
+    if (
+      modelKey === "wan22" &&
+      (!Number.isInteger(inferenceSteps) || inferenceSteps < 1 || inferenceSteps > 80 ||
+        guidanceScale < 0 || guidanceScale > 20 ||
+        !Number.isInteger(videoCrf) || videoCrf < 14 || videoCrf > 28)
+    ) {
+      return Response.json({ error: "Wan controls are outside the supported range." }, { status: 400 });
+    }
+    const durationSeconds = Number((frames / fps).toFixed(3));
+    const recordedQuality = modelKey === "ltx23" ? `${width}x${height}` : qualityKey;
+    const computeScale =
+      (width * height) / (settings.quality.width * settings.quality.height) *
+      (frames / settings.duration.frames) *
+      (modelKey === "wan22" ? inferenceSteps / 20 : 1);
+    const estimatedSeconds = Math.max(20, Math.round(settings.estimate * computeScale));
+
     let imageBytes: ArrayBuffer | null = null;
     let sourceObjectKey: string | null = null;
     let sourceFileName: string | null = null;
@@ -206,11 +255,11 @@ export async function POST(request: Request) {
       model_key: modelKey,
       prompt,
       negative_prompt: negativePrompt || null,
-      quality: qualityKey,
-      width: settings.quality.width,
-      height: settings.quality.height,
-      duration_seconds: settings.duration.seconds,
-      fps: settings.duration.fps,
+      quality: recordedQuality,
+      width,
+      height,
+      duration_seconds: durationSeconds,
+      fps,
       seed: seedValue,
       job_id: id,
       thumbnail_object_key: sourceObjectKey,
@@ -233,13 +282,13 @@ export async function POST(request: Request) {
       negative_prompt: negativePrompt || null,
       status: "queued",
       progress: 2,
-      quality: qualityKey,
-      duration_seconds: settings.duration.seconds,
-      width: settings.quality.width,
-      height: settings.quality.height,
-      fps: settings.duration.fps,
+      quality: recordedQuality,
+      duration_seconds: durationSeconds,
+      width,
+      height,
+      fps,
       seed: seedValue,
-      estimated_seconds: settings.estimate,
+      estimated_seconds: estimatedSeconds,
       modal_call_id: null,
       modal_result_path: null,
       source_object_key: sourceObjectKey,
@@ -336,19 +385,19 @@ export async function POST(request: Request) {
             negative_prompt: negativePrompt,
             image_base64: Buffer.from(imageBytes as ArrayBuffer).toString("base64"),
             resolution: qualityKey,
-            num_frames: settings.duration.frames,
-            // Favor quick playground iterations; quality can be raised later.
-            num_inference_steps: 20,
-            guidance_scale: 3.5,
+            num_frames: frames,
+            num_inference_steps: inferenceSteps,
+            guidance_scale: guidanceScale,
             seed: seedValue,
-            fps: settings.duration.fps,
+            fps,
+            video_crf: videoCrf,
           }
         : {
             prompt,
-            width: settings.quality.width,
-            height: settings.quality.height,
-            num_frames: settings.duration.frames,
-            frame_rate: settings.duration.fps,
+            width,
+            height,
+            num_frames: frames,
+            frame_rate: fps,
             seed: seedValue,
           };
 

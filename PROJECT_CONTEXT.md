@@ -136,9 +136,11 @@ Video models are declared in `lib/ai-video-models.ts`.
 - Wan 2.2 I2V-A14B
   - Image-to-video; source image required.
   - 480p (`832x480`) or 720p (`1280x720`).
-  - Approximately 5 or 10 seconds at 16 fps.
-  - Production requests currently favor fast playground iteration with 20
-    inference steps; use 480p / 5 seconds for the quickest image-guided test.
+  - Creator exposes the full endpoint ranges: 9–161 frames in `4n+1`
+    increments, 1–30 fps, 1–80 inference steps, 0–20 guidance, CRF 14–28,
+    and a deterministic seed.
+  - Lowest-compute defaults are 480p, 9 frames, 1 fps, 1 inference step,
+    guidance 0, CRF 28, and seed 0.
   - Runtime URL: `WAN22_MODAL_URL`.
   - Current Modal app/function: `video-models` / `wan_api`.
   - Current base route:
@@ -149,8 +151,9 @@ Video models are declared in `lib/ai-video-models.ts`.
     explicitly validates that body before spawning the GPU call.
 - LTX 2.3
   - Text-to-video with synchronized generated audio.
-  - `768x512` or `1280x768`.
-  - Approximately 5 or 10 seconds at 24 fps.
+  - Creator exposes 256–1920 width and height in 32-pixel increments,
+    9–241 frames in `8n+1` increments, 1–50 fps, and a deterministic seed.
+  - Lowest-compute defaults are `256x256`, 9 frames, 1 fps, and seed 0.
   - Runtime URL: `LTX23_MODAL_URL`.
 
 Picture creation uses the protected local GPU/ComfyUI connection:

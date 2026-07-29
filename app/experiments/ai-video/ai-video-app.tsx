@@ -817,6 +817,26 @@ function PicturePending() {
   );
 }
 
+function GenerationRange({
+  label, value, min, max, step, hint, onChange,
+}: {
+  label: string; value: number; min: number; max: number; step: number;
+  hint: string; onChange: (value: number) => void;
+}) {
+  const update = (next: number) => {
+    const bounded = Math.min(max, Math.max(min, next));
+    const snapped = min + Math.round((bounded - min) / step) * step;
+    onChange(Number(snapped.toFixed(3)));
+  };
+  return (
+    <label className="aiv-range-control">
+      <span><strong>{label}</strong><output>{value}</output></span>
+      <input type="range" min={min} max={max} step={step} value={value} onChange={(event) => update(Number(event.target.value))} />
+      <small>{hint} · {min}–{max}</small>
+    </label>
+  );
+}
+
 function CreateView() {
   const searchParams = useSearchParams();
   const extendMediaId = searchParams.get("extend");
@@ -833,11 +853,17 @@ function CreateView() {
   const [videoModelKey, setVideoModelKey] = useState<AiVideoModelKey>("wan22");
   const videoModel = AI_VIDEO_MODELS[videoModelKey];
   const [quality, setQuality] = useState(extendMediaId ? "480p" : "480p");
-  const [duration, setDuration] = useState("5");
+  const [outputWidth, setOutputWidth] = useState(256);
+  const [outputHeight, setOutputHeight] = useState(256);
+  const [numFrames, setNumFrames] = useState(9);
+  const [frameRate, setFrameRate] = useState(1);
+  const [inferenceSteps, setInferenceSteps] = useState(1);
+  const [guidanceScale, setGuidanceScale] = useState(0);
+  const [videoCrf, setVideoCrf] = useState(28);
   const [source, setSource] = useState<File | null>(null);
   const [prompt, setPrompt] = useState("");
   const [negativePrompt, setNegativePrompt] = useState("");
-  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2_147_483_647));
+  const [seed, setSeed] = useState(0);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [job, setJob] = useState<PublicJob | null>(null);
@@ -888,6 +914,13 @@ function CreateView() {
   function chooseVideoModel(next: AiVideoModelKey) {
     setVideoModelKey(next);
     setQuality(next === "wan22" ? "480p" : "standard");
+    setOutputWidth(256);
+    setOutputHeight(256);
+    setNumFrames(9);
+    setFrameRate(1);
+    setInferenceSteps(1);
+    setGuidanceScale(0);
+    setVideoCrf(28);
     if (next === "ltx23") setSource(null);
   }
 
@@ -924,7 +957,14 @@ function CreateView() {
       const form = new FormData();
       form.set("modelKey", videoModelKey);
       form.set("quality", quality);
-      form.set("duration", duration);
+      form.set("duration", "5");
+      form.set("outputWidth", String(outputWidth));
+      form.set("outputHeight", String(outputHeight));
+      form.set("numFrames", String(numFrames));
+      form.set("frameRate", String(frameRate));
+      form.set("inferenceSteps", String(inferenceSteps));
+      form.set("guidanceScale", String(guidanceScale));
+      form.set("videoCrf", String(videoCrf));
       form.set("prompt", prompt);
       form.set("negativePrompt", negativePrompt);
       form.set("seed", String(seed));
@@ -1141,32 +1181,78 @@ function CreateView() {
         </section>
 
         <section className="aiv-form-section">
-          <div className="aiv-step"><span>3</span><div><strong>Set the output</strong><small>Your media record is created with Submitted status first.</small></div></div>
+          <div className="aiv-step">
+            <span>3</span>
+            <div>
+              <strong>Set the output</strong>
+              <small>Every available {creationType === "video" ? `${videoModel.name} ` : ""}option is shown. Lowest-compute values are selected by default.</small>
+            </div>
+          </div>
           <div className="aiv-setting-row">
             <fieldset>
-              <legend>Quality</legend>
+              <legend>{videoModelKey === "wan22" || creationType === "picture" ? "Resolution" : "Canvas"}</legend>
               <div>
                 {creationType === "picture" ? (
                   <label><input type="radio" checked readOnly /><span>1024 × 576</span></label>
-                ) : (
+                ) : videoModelKey === "wan22" ? (
                   Object.entries(videoModel.qualities).map(([key, option]) => (
                     <label key={key}><input type="radio" name="quality" checked={quality === key} onChange={() => setQuality(key)} /><span>{option.label}</span></label>
                   ))
+                ) : (
+                  <span className="aiv-custom-canvas">{outputWidth} × {outputHeight}</span>
                 )}
               </div>
             </fieldset>
-            {creationType === "video" && (
-              <fieldset>
-                <legend>Duration</legend>
-                <div>
-                  {Object.entries(videoModel.durations).map(([key, option]) => (
-                    <label key={key}><input type="radio" name="duration" checked={duration === key} onChange={() => setDuration(key)} /><span>{option.seconds}s</span></label>
-                  ))}
-                </div>
-              </fieldset>
-            )}
-            <label className="aiv-seed">Seed<input type="number" min="0" step="1" value={seed} onChange={(event) => setSeed(Number(event.target.value))} /></label>
+            <label className="aiv-seed">
+              Seed
+              <input type="number" min="0" max="2147483647" step="1" value={seed} onChange={(event) => setSeed(Number(event.target.value))} />
+              <small>0 is the lowest valid deterministic seed.</small>
+            </label>
           </div>
+          {creationType === "video" && (
+            <>
+              <div className="aiv-advanced-heading">
+                <div>
+                  <strong>Generation controls</strong>
+                  <small>{numFrames} frames at {frameRate} fps · about {(numFrames / frameRate).toFixed(2)} seconds</small>
+                </div>
+                <span>{videoModelKey === "wan22" ? "WAN 2.2" : "LTX-2.3"}</span>
+              </div>
+              <div className="aiv-generation-options">
+                {videoModelKey === "ltx23" && (
+                  <>
+                    <GenerationRange label="Width" value={outputWidth} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={setOutputWidth} />
+                    <GenerationRange label="Height" value={outputHeight} min={256} max={1920} step={32} hint="Pixels, in 32 px increments" onChange={setOutputHeight} />
+                  </>
+                )}
+                <GenerationRange
+                  label="Frames"
+                  value={numFrames}
+                  min={9}
+                  max={videoModelKey === "wan22" ? 161 : 241}
+                  step={videoModelKey === "wan22" ? 4 : 8}
+                  hint={videoModelKey === "wan22" ? "Must be 4n + 1" : "Must be 8n + 1"}
+                  onChange={setNumFrames}
+                />
+                <GenerationRange
+                  label="Frame rate"
+                  value={frameRate}
+                  min={1}
+                  max={videoModelKey === "wan22" ? 30 : 50}
+                  step={1}
+                  hint="Playback frames per second"
+                  onChange={setFrameRate}
+                />
+                {videoModelKey === "wan22" && (
+                  <>
+                    <GenerationRange label="Inference steps" value={inferenceSteps} min={1} max={80} step={1} hint="More steps can add detail but take longer" onChange={setInferenceSteps} />
+                    <GenerationRange label="Guidance scale" value={guidanceScale} min={0} max={20} step={0.5} hint="How strongly the prompt guides motion" onChange={setGuidanceScale} />
+                    <GenerationRange label="Compression (CRF)" value={videoCrf} min={14} max={28} step={1} hint="28 makes the smallest output; 14 preserves more detail" onChange={setVideoCrf} />
+                  </>
+                )}
+              </div>
+            </>
+          )}
         </section>
 
         {error && <p className="aiv-form-error" role="alert">{error}</p>}

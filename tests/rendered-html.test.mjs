@@ -211,7 +211,9 @@ test("normalizes structured Modal responses before D1 writes", async () => {
   assert.match(source, /function modalErrorMessage/);
   assert.match(source, /resultPath\?\.split/);
   assert.match(source, /modal_call_id: callId/);
-  assert.match(source, /num_inference_steps: 20/);
+  assert.match(source, /num_inference_steps: inferenceSteps/);
+  assert.match(source, /video_crf: videoCrf/);
+  assert.match(source, /frame_rate: fps/);
   assert.match(source, /body: JSON\.stringify\(payload\)/);
   assert.match(source, /referenceMedia\.content_object_key/);
   assert.match(source, /The reference picture is unavailable/);
