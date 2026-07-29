@@ -101,7 +101,8 @@ AI Video experiment (login required):
   private video without creating permanent thumbnail objects.
 - `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
   play in creation order and Export queues a CPU-only FFmpeg merge that creates
-  a new private video library item.
+  a new private video library item. The scene polls the export and automatically
+  opens the merged video's media view once its preview is ready.
 - `/experiments/ai-video/video/:id` — private video player.
 - Bottom navigation provides Home, Create, Library, and placeholders.
 

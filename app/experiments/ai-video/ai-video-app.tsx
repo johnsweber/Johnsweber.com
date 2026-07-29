@@ -1356,6 +1356,12 @@ function SceneView({ sceneId }: { sceneId: string }) {
     return () => { active = false; window.clearTimeout(timer); };
   }, [load]);
 
+  useEffect(() => {
+    if (task?.status === "complete" && task.outputMediaId) {
+      window.location.assign(`/experiments/ai-video/media/${task.outputMediaId}`);
+    }
+  }, [task?.outputMediaId, task?.status]);
+
   async function exportScene() {
     setExporting(true);
     setError("");
@@ -1406,7 +1412,9 @@ function SceneView({ sceneId }: { sceneId: string }) {
               <div className="aiv-progress-track"><span style={{ width: `${task.progress}%` }} /></div>
             </div>
           ) : task?.status === "complete" && task.outputMediaId ? (
-            <div className="aiv-actions"><Link href={`/experiments/ai-video/media/${task.outputMediaId}`}><Play aria-hidden="true" /> View exported video</Link></div>
+            <div className="aiv-export-progress">
+              <Play aria-hidden="true" /><div><strong>Preview ready</strong><span>Opening the merged video…</span></div>
+            </div>
           ) : (
             <div className="aiv-actions">
               <button type="button" className="aiv-action-button" onClick={exportScene} disabled={exporting}>
