@@ -87,7 +87,7 @@ def merge_videos(source_urls: list[str], access_token: str):
 
 
 @app.function(image=image, volumes={str(ROOT): volume})
-@modal.asgi_app()
+@modal.asgi_app(requires_proxy_auth=True)
 def api():
     from fastapi import FastAPI, HTTPException
     from fastapi.responses import FileResponse, JSONResponse
