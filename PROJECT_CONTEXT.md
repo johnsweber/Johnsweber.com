@@ -51,7 +51,10 @@ scope reads/writes by Clerk user ID.
 
 Public/general:
 
-- `/` — portfolio and playground landing page.
+- `/` — portfolio and playground landing page. Its hero collage sits on a
+  white gallery canvas; the portrait stays above an interactive HTML visual
+  representing hands-on, playful, logical work. The visual responds to
+  pointer/touch input and optionally to device orientation.
 - `/hero-preview` — unlinked, no-index phone preview for the pointer/touch and
   device-orientation-responsive Logic Playground hero concept. It is a draft
   route and is not yet used by the production homepage.

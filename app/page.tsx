@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { SiteNavigation } from "./site-navigation";
+import { HeroLogicImage } from "./hero-logic-image";
 
 type ProbeResult = {
   ok?: boolean;
@@ -87,11 +88,7 @@ export default function Home() {
             <img src="/john-portrait.png" alt="AI-realistic portrait of John Weber" />
             <span>CURIOUS BUILDER</span>
           </div>
-          <div className="network-card" aria-hidden="true">
-            <div className="network-layer"><i /><i /><i /></div>
-            <div className="network-core">AI</div>
-            <div className="network-layer"><i /><i /><i /></div>
-          </div>
+          <HeroLogicImage />
           <div className="dog-card">
             <img src="/dog-original.jpg" alt="John's dog sitting outside in Washington, DC" />
             <span>CHIEF WALK OFFICER</span>

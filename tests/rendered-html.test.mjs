@@ -37,6 +37,19 @@ test("renders the John Weber playground", async () => {
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 
+test("uses the interactive logic portrait instead of the AI badge", async () => {
+  const home = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
+  const visual = await readFile(
+    new URL("../app/hero-logic-image.tsx", import.meta.url),
+    "utf8",
+  );
+  assert.match(home, /<HeroLogicImage \/>/);
+  assert.doesNotMatch(home, /network-core/);
+  assert.match(visual, /HANDS \/ LOGIC \/ PLAY/);
+  assert.match(visual, /requestPermission/);
+  assert.match(visual, /onPointerMove/);
+});
+
 test("renders Google and Apple account creation", async () => {
   const response = await render("/create-account");
   assert.equal(response.status, 200);
