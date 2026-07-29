@@ -95,6 +95,9 @@ AI Video experiment (login required):
   pending state. Completed videos with a saved last frame offer **Extend video**.
   Video players read the file's actual metadata duration and persist it back to
   the owned media record, correcting older configuration-derived durations.
+  **Scan timeline** lazily samples a compact set of frames in the browser only
+  when opened. Mouse, touch/drag, and keyboard movement show a floating preview
+  and seek the private video without creating permanent thumbnail objects.
 - `/experiments/ai-video/scene/:id` — sequential private scene player. Clips
   play in creation order and Export queues a CPU-only FFmpeg merge that creates
   a new private video library item.

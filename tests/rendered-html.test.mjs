@@ -233,6 +233,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /function SceneView/);
   assert.match(app, /onLoadedMetadata/);
   assert.match(app, /durationSeconds: duration/);
+  assert.match(app, /function ScannableVideo/);
+  assert.match(app, /Scan timeline/);
+  assert.match(app, /toDataURL\("image\/jpeg"/);
+  assert.match(app, /onPointerMove=\{handlePointerMove\}/);
   assert.match(app, /Export scene/);
   assert.match(database, /ai_video_scene_items/);
   assert.match(database, /last_frame_object_key/);

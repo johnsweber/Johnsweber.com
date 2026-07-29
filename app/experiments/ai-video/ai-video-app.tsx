@@ -32,6 +32,8 @@ import {
   useRef,
   useState,
   type FormEvent,
+  type KeyboardEvent,
+  type PointerEvent as ReactPointerEvent,
   type ReactNode,
   type SyntheticEvent,
 } from "react";
@@ -287,6 +289,255 @@ function PrivateMediaAsset({
     />
   ) : (
     <img className={className} src={url} alt="" />
+  );
+}
+
+type TimelineFrame = { time: number; source: string };
+
+function ScannableVideo({
+  mediaId,
+  onDuration,
+}: {
+  mediaId: string;
+  onDuration: (seconds: number) => void;
+}) {
+  const authorizedFetch = useAuthorizedFetch();
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const timelineRef = useRef<HTMLDivElement>(null);
+  const generationRef = useRef(0);
+  const [url, setUrl] = useState("");
+  const [duration, setDuration] = useState(0);
+  const [scanOpen, setScanOpen] = useState(false);
+  const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState(0);
+  const [scanTime, setScanTime] = useState(0);
+  const [showPreview, setShowPreview] = useState(false);
+  const [frames, setFrames] = useState<TimelineFrame[]>([]);
+  const [scanError, setScanError] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    let objectUrl = "";
+    authorizedFetch(`/api/experiments/ai-video/media/${mediaId}/content`)
+      .then(response => {
+        if (!response.ok) throw new Error("Video unavailable.");
+        return response.blob();
+      })
+      .then(blob => {
+        if (!active) return;
+        objectUrl = URL.createObjectURL(blob);
+        setUrl(objectUrl);
+      })
+      .catch(error => {
+        if (active) setScanError(error instanceof Error ? error.message : "Video unavailable.");
+      });
+    return () => {
+      active = false;
+      generationRef.current += 1;
+      if (objectUrl) URL.revokeObjectURL(objectUrl);
+    };
+  }, [authorizedFetch, mediaId]);
+
+  async function generateFrames() {
+    if (!url || frames.length || scanning) return;
+    const generation = generationRef.current + 1;
+    generationRef.current = generation;
+    setScanning(true);
+    setScanError("");
+    try {
+      const sampler = document.createElement("video");
+      sampler.src = url;
+      sampler.muted = true;
+      sampler.preload = "auto";
+      sampler.playsInline = true;
+      if (sampler.readyState < 1) {
+        await new Promise<void>((resolve, reject) => {
+          sampler.addEventListener("loadedmetadata", () => resolve(), { once: true });
+          sampler.addEventListener("error", () => reject(new Error("Could not read video metadata.")), { once: true });
+        });
+      }
+      if (sampler.readyState < 2) {
+        await new Promise<void>((resolve, reject) => {
+          sampler.addEventListener("loadeddata", () => resolve(), { once: true });
+          sampler.addEventListener("error", () => reject(new Error("Could not load preview frames.")), { once: true });
+        });
+      }
+      const measuredDuration = sampler.duration;
+      if (!Number.isFinite(measuredDuration) || measuredDuration <= 0) {
+        throw new Error("This video does not expose a scannable duration.");
+      }
+      const count = Math.min(16, Math.max(8, Math.ceil(measuredDuration / 2)));
+      const width = 240;
+      const height = Math.max(90, Math.round(width * (sampler.videoHeight / sampler.videoWidth)));
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const context = canvas.getContext("2d");
+      if (!context) throw new Error("Timeline previews are unavailable.");
+      const nextFrames: TimelineFrame[] = [];
+      for (let index = 0; index < count; index += 1) {
+        if (generationRef.current !== generation) return;
+        const time = Math.min(
+          Math.max(0, measuredDuration - 0.04),
+          (measuredDuration * index) / Math.max(1, count - 1),
+        );
+        if (Math.abs(sampler.currentTime - time) > 0.01) {
+          await new Promise<void>((resolve, reject) => {
+            sampler.addEventListener("seeked", () => resolve(), { once: true });
+            sampler.addEventListener("error", () => reject(new Error("A preview frame could not be read.")), { once: true });
+            sampler.currentTime = time;
+          });
+        }
+        context.drawImage(sampler, 0, 0, width, height);
+        nextFrames.push({ time, source: canvas.toDataURL("image/jpeg", 0.68) });
+        setScanProgress(Math.round(((index + 1) / count) * 100));
+      }
+      setFrames(nextFrames);
+    } catch (error) {
+      setScanError(error instanceof Error ? error.message : "Timeline previews could not be created.");
+    } finally {
+      if (generationRef.current === generation) setScanning(false);
+    }
+  }
+
+  function timeAt(clientX: number) {
+    const bounds = timelineRef.current?.getBoundingClientRect();
+    if (!bounds || !duration) return 0;
+    const ratio = Math.min(1, Math.max(0, (clientX - bounds.left) / bounds.width));
+    return ratio * duration;
+  }
+
+  function previewAt(clientX: number) {
+    const time = timeAt(clientX);
+    setScanTime(time);
+    setShowPreview(true);
+    return time;
+  }
+
+  function commitTime(time: number) {
+    if (videoRef.current) videoRef.current.currentTime = time;
+  }
+
+  function handlePointerDown(event: ReactPointerEvent<HTMLDivElement>) {
+    event.currentTarget.setPointerCapture(event.pointerId);
+    videoRef.current?.pause();
+    previewAt(event.clientX);
+  }
+
+  function handlePointerMove(event: ReactPointerEvent<HTMLDivElement>) {
+    if (event.pointerType === "touch" && !event.currentTarget.hasPointerCapture(event.pointerId)) return;
+    previewAt(event.clientX);
+  }
+
+  function handlePointerUp(event: ReactPointerEvent<HTMLDivElement>) {
+    const time = previewAt(event.clientX);
+    commitTime(time);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  }
+
+  function handleTimelineKey(event: KeyboardEvent<HTMLDivElement>) {
+    if (!["ArrowLeft", "ArrowRight", "Home", "End"].includes(event.key)) return;
+    event.preventDefault();
+    const step = event.shiftKey ? 5 : 1;
+    const next =
+      event.key === "Home" ? 0 :
+      event.key === "End" ? duration :
+      Math.min(duration, Math.max(0, scanTime + (event.key === "ArrowLeft" ? -step : step)));
+    setScanTime(next);
+    setShowPreview(true);
+    commitTime(next);
+  }
+
+  const selectedFrame = frames.reduce<TimelineFrame | null>(
+    (closest, frame) =>
+      !closest || Math.abs(frame.time - scanTime) < Math.abs(closest.time - scanTime)
+        ? frame
+        : closest,
+    null,
+  );
+  const previewPosition = duration ? Math.min(93, Math.max(7, (scanTime / duration) * 100)) : 7;
+
+  if (!url) return <div className="aiv-player-message">Preparing secure video…</div>;
+  return (
+    <div className="aiv-scannable-video">
+      <video
+        ref={videoRef}
+        className="aiv-video"
+        src={url}
+        controls
+        autoPlay
+        playsInline
+        onLoadedMetadata={event => {
+          const measured = event.currentTarget.duration;
+          if (Number.isFinite(measured) && measured > 0) {
+            setDuration(measured);
+            setScanTime(event.currentTarget.currentTime);
+            onDuration(measured);
+          }
+        }}
+        onTimeUpdate={event => {
+          if (!showPreview) setScanTime(event.currentTarget.currentTime);
+        }}
+        onPlay={() => setShowPreview(false)}
+      />
+      <div className="aiv-scan-controls">
+        <button
+          type="button"
+          className="aiv-scan-toggle"
+          onClick={() => {
+            const opening = !scanOpen;
+            setScanOpen(opening);
+            if (opening) void generateFrames();
+          }}
+        >
+          <PanelsTopLeft aria-hidden="true" />
+          {scanOpen ? "Close timeline" : "Scan timeline"}
+        </button>
+        {scanOpen && (
+          <span>{scanning ? `Building previews · ${scanProgress}%` : "Move, tap, or drag to scan"}</span>
+        )}
+      </div>
+      {scanOpen && (
+        <div className="aiv-scan-editor">
+          <div
+            ref={timelineRef}
+            className={`aiv-scan-timeline ${scanning ? "loading" : ""}`}
+            role="slider"
+            tabIndex={0}
+            aria-label="Video timeline"
+            aria-valuemin={0}
+            aria-valuemax={Math.round(duration)}
+            aria-valuenow={Math.round(scanTime)}
+            onPointerDown={handlePointerDown}
+            onPointerMove={handlePointerMove}
+            onPointerUp={handlePointerUp}
+            onPointerCancel={() => setShowPreview(false)}
+            onPointerLeave={event => {
+              if (!event.currentTarget.hasPointerCapture(event.pointerId)) setShowPreview(false);
+            }}
+            onKeyDown={handleTimelineKey}
+          >
+            {frames.length ? frames.map(frame => (
+              <img key={frame.time} src={frame.source} alt="" draggable={false} />
+            )) : <span className="aiv-scan-skeleton" style={{ width: `${scanProgress}%` }} />}
+            <i className="aiv-scan-playhead" style={{ left: `${duration ? (scanTime / duration) * 100 : 0}%` }} />
+            {showPreview && selectedFrame && (
+              <div className="aiv-scan-preview" style={{ left: `${previewPosition}%` }}>
+                <img src={selectedFrame.source} alt="" />
+                <strong>{formatDuration(scanTime)}</strong>
+              </div>
+            )}
+          </div>
+          <div className="aiv-scan-time">
+            <span>{formatDuration(scanTime)}</span>
+            <span>{formatDuration(duration)}</span>
+          </div>
+          {scanError && <p className="aiv-form-error">{scanError}</p>}
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -1014,14 +1265,13 @@ function MediaView({
       ) : (
         <section className="aiv-player">
           <div className={`aiv-video-stage ${media.mediaType === "picture" ? "picture" : ""}`}>
-            <PrivateMediaAsset
-              mediaId={media.id}
-              mediaType={media.mediaType === "video" ? "video" : "picture"}
-              className={media.mediaType === "video" ? "aiv-video" : "aiv-picture"}
-              onDuration={media.mediaType === "video" ? captureDuration : undefined}
-            >
-              <div className="aiv-player-message">Preparing secure {media.mediaType}…</div>
-            </PrivateMediaAsset>
+            {media.mediaType === "video" ? (
+              <ScannableVideo mediaId={media.id} onDuration={captureDuration} />
+            ) : (
+              <PrivateMediaAsset mediaId={media.id} mediaType="picture" className="aiv-picture">
+                <div className="aiv-player-message">Preparing secure picture…</div>
+              </PrivateMediaAsset>
+            )}
           </div>
           <div className="aiv-player-info">
             <div><p className="aiv-kicker">{modelName(media)}</p><h1>{media.prompt}</h1></div>
