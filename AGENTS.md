@@ -20,4 +20,7 @@ Project conventions:
 - Preserve experiment isolation: shared identity/account metadata may be reused,
   but each experiment owns its API namespace, tables, and object-storage prefix.
 - Keep external/network operations short and report promptly if one times out.
-
+- Default deployment is `npm run deploy`, which reuses the existing validated
+  `dist/` build for fast iteration. Do not recompile unless the user explicitly
+  asks. When requested, use `npm run deploy:recompile` with the required
+  build-time environment configured.

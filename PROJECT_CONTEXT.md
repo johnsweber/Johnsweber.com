@@ -215,11 +215,22 @@ Standard deployment target:
 npm run deploy
 ```
 
-Wrangler must be authenticated to the correct Cloudflare account. Confirm that
-the built Worker has the real D1 database ID before publishing because the Vite
-source configuration uses a safe placeholder. Apply new SQL files to remote D1
-before deploying code that depends on them. A non-visual HTTP status check is
-acceptable after deployment; ask before browser or visual testing.
+This is the default rapid-iteration path: it publishes the existing validated
+`dist/` output without recompiling. Do not run a new build unless the user asks
+for a recompile.
+
+For an explicitly requested recompile:
+
+```bash
+npm run deploy:recompile
+```
+
+That command builds, resolves the production D1 database ID by name, prepares
+the generated Worker configuration, and then deploys it. The Clerk publishable
+key must be present during that build. Wrangler must be authenticated to the
+correct Cloudflare account. Apply new SQL files to remote D1 before deploying
+code that depends on them. A non-visual HTTP status check is acceptable after
+deployment; ask before browser or visual testing.
 
 ## Known operational constraints
 

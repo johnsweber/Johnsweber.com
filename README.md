@@ -23,9 +23,10 @@ npm test
 npm run deploy
 ```
 
-The deploy command publishes the built Worker to both `johnsweber.com` and
-`www.johnsweber.com`. Wrangler must already be authenticated to the correct
-Cloudflare account.
+The deploy command rapidly republishes the existing validated build to both
+`johnsweber.com` and `www.johnsweber.com` without recompiling. Use
+`npm run deploy:recompile` only when a fresh compilation is required. Wrangler
+must already be authenticated to the correct Cloudflare account.
 
 The Worker expects these encrypted runtime secrets:
 
