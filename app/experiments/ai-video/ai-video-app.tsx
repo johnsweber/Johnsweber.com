@@ -2358,6 +2358,10 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   const playbackRefs = useRef(new Map<string, HTMLVideoElement>());
   const savedDurations = useRef(new Map<string, number>());
   const observedExportPending = useRef(false);
+  const playableKey = items
+    .filter(item => item.status === "complete" && item.hasContent)
+    .map(item => item.id)
+    .join("|");
 
   const captureDuration = useCallback((mediaId: string, duration: number) => {
     setItems(current => current.map(item =>
@@ -2459,7 +2463,7 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
       active = false;
       objectUrls.forEach(objectUrl => URL.revokeObjectURL(objectUrl));
     };
-  }, [authorizedFetch, items]);
+  }, [authorizedFetch, playableKey]);
 
   const hasPendingVideos = items.some(item => isPending(item.status));
   const allVideosReady =
@@ -2470,16 +2474,17 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
       Boolean(sources[item.id])
     );
 
+  const activeMediaId = items[index]?.id;
   useEffect(() => {
     if (!allVideosReady) return;
     playbackRefs.current.forEach((video, mediaId) => {
-      if (items[index]?.id === mediaId) {
+      if (activeMediaId === mediaId) {
         void video.play().catch(() => undefined);
       } else {
         video.pause();
       }
     });
-  }, [allVideosReady, index, items]);
+  }, [allVideosReady, activeMediaId]);
 
   function selectClip(itemIndex: number, localTime = 0, play = true) {
     if (itemIndex < 0 || itemIndex >= items.length) return;
@@ -2622,7 +2627,13 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 controls={itemIndex === index}
                 playsInline
                 preload="auto"
-                onEnded={() => selectClip(itemIndex + 1 < items.length ? itemIndex + 1 : 0)}
+                onEnded={() => {
+                  if (itemIndex + 1 < items.length) {
+                    selectClip(itemIndex + 1);
+                  } else {
+                    setPlaybackTime(sceneDuration);
+                  }
+                }}
                 onTimeUpdate={event => {
                   if (itemIndex === index && timelinePreview === null) {
                     setPlaybackTime(elapsedBefore(itemIndex) + event.currentTarget.currentTime);
@@ -2694,26 +2705,21 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
               }}
             >
               {items.map((item, itemIndex) => (
-                <button
-                  type="button"
+                <div
                   key={item.id}
-                  className={itemIndex === index ? "active" : ""}
+                  className={`aiv-scene-segment ${itemIndex === index ? "active" : ""}`}
                   style={{
                     width: sceneDuration
                       ? `${((item.durationSeconds || 0) / sceneDuration) * 100}%`
                       : `${100 / items.length}%`,
                   }}
-                  onClick={event => {
-                    event.stopPropagation();
-                    seekScene(elapsedBefore(itemIndex));
-                  }}
-                  aria-label={`Play clip ${itemIndex + 1}`}
+                  aria-hidden="true"
                 >
                   <PrivateMediaAsset mediaId={item.id} mediaType="video" thumbnail>
                     <span>{isPending(item.status) ? <Clock3 aria-hidden="true" /> : itemIndex + 1}</span>
                   </PrivateMediaAsset>
                   <i>{itemIndex + 1}</i>
-                </button>
+                </div>
               ))}
               <span
                 className="aiv-scene-playhead"

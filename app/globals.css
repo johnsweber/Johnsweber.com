@@ -2151,17 +2151,20 @@ body.menu-open { overflow: hidden; }
 .aiv-scene-stage { position: relative; aspect-ratio: 16/9; overflow: hidden; background: #000; }
 .aiv-scene-video { position: absolute; inset: 0; z-index: 1; width: 100%; height: 100%; object-fit: contain; opacity: 0; pointer-events: none; background: #000; }
 .aiv-scene-video.active { z-index: 10; opacity: 1; pointer-events: auto; }
+.aiv-scene-video::-webkit-media-controls-timeline,
+.aiv-scene-video::-webkit-media-controls-current-time-display,
+.aiv-scene-video::-webkit-media-controls-time-remaining-display { display: none; }
 .aiv-scene-stage > .aiv-player-message { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; text-align: center; background: #0d0c11; }
 .aiv-scene-timeline-wrap { margin: .75rem .25rem 1rem; }
 .aiv-scene-timeline { position: relative; height: 86px; display: flex; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: #16141b; cursor: crosshair; touch-action: none; user-select: none; outline: none; }
 .aiv-scene-timeline:focus-visible { border-color: #72a8ff; box-shadow: 0 0 0 3px rgba(54,126,255,.2); }
-.aiv-scene-timeline > button { position: relative; min-width: 34px; height: 100%; padding: 0; overflow: hidden; border: 0; border-right: 2px solid rgba(255,255,255,.8); background: rgba(255,255,255,.06); cursor: pointer; }
-.aiv-scene-timeline > button:first-child { border-radius: 11px 0 0 11px; }
-.aiv-scene-timeline > button:last-of-type { border-right: 0; border-radius: 0 11px 11px 0; }
-.aiv-scene-timeline > button.active { box-shadow: inset 0 0 0 3px #72a8ff; }
-.aiv-scene-timeline > button img { width: 100%; height: 100%; object-fit: cover; opacity: .74; pointer-events: none; }
-.aiv-scene-timeline > button > span { display: grid; height: 100%; place-items: center; color: white; }
-.aiv-scene-timeline > button > i { position: absolute; left: 7px; bottom: 6px; z-index: 2; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: white; background: rgba(0,0,0,.72); font: 700 10px var(--font-geist-mono),monospace; }
+.aiv-scene-segment { position: relative; min-width: 34px; height: 100%; overflow: hidden; border-right: 2px solid rgba(255,255,255,.8); background: rgba(255,255,255,.06); pointer-events: none; }
+.aiv-scene-segment:first-child { border-radius: 11px 0 0 11px; }
+.aiv-scene-segment:last-of-type { border-right: 0; border-radius: 0 11px 11px 0; }
+.aiv-scene-segment.active { box-shadow: inset 0 0 0 3px #72a8ff; }
+.aiv-scene-segment img { width: 100%; height: 100%; object-fit: cover; opacity: .74; pointer-events: none; }
+.aiv-scene-segment > span { display: grid; height: 100%; place-items: center; color: white; }
+.aiv-scene-segment > i { position: absolute; left: 7px; bottom: 6px; z-index: 2; width: 22px; height: 22px; display: grid; place-items: center; border-radius: 50%; color: white; background: rgba(0,0,0,.72); font: 700 10px var(--font-geist-mono),monospace; }
 .aiv-scene-playhead { position: absolute; top: -4px; bottom: -4px; z-index: 4; width: 2px; pointer-events: none; background: #ff6c46; box-shadow: 0 0 10px rgba(255,108,70,.72); }
 .aiv-scene-timeline-preview { position: absolute; bottom: calc(100% + 10px); z-index: 5; padding: 7px 10px; display: grid; gap: 2px; border-radius: 8px; color: white; background: #06050a; transform: translateX(-50%); white-space: nowrap; pointer-events: none; }
 .aiv-scene-timeline-preview strong { font-size: 11px; }
