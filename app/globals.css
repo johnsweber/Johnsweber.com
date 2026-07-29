@@ -296,10 +296,36 @@ main { min-height: 100vh; overflow: hidden; }
 
 /* Abstract watercolor circuit portrait: contained at rest, expansive on interaction. */
 .logic-image-card {
+  --sx: 0px;
+  --sy: 0px;
+  --stx: 0px;
+  --sty: 0px;
   overflow: visible;
   border-color: transparent;
   background: transparent;
   box-shadow: none;
+}
+.logic-page-bloom {
+  position: fixed;
+  z-index: 1;
+  inset: -18vmax;
+  pointer-events: none;
+  opacity: 0;
+  transform: scale(.28) rotate(-8deg);
+  transform-origin: 72% 28%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle at 63% 31%,rgba(255,147,58,.72),transparent 26%),
+    radial-gradient(circle at 76% 40%,rgba(154,113,225,.54),transparent 30%),
+    radial-gradient(circle at 55% 54%,rgba(20,168,160,.48),transparent 32%),
+    radial-gradient(circle at 82% 62%,rgba(44,107,218,.42),transparent 29%);
+  filter: blur(42px) saturate(1.15);
+  mix-blend-mode: multiply;
+  transition: opacity .55s ease,transform 1.15s cubic-bezier(.16,.84,.22,1);
+}
+.logic-image-card[data-active="true"] .logic-page-bloom {
+  opacity: .38;
+  transform: translate(calc(var(--mx) + var(--tx)),calc(var(--my) + var(--ty))) scale(1) rotate(4deg);
 }
 .logic-photo-surface {
   position: absolute;
@@ -329,6 +355,7 @@ main { min-height: 100vh; overflow: hidden; }
   pointer-events: none;
   filter: saturate(1.06);
   transition: filter .8s ease;
+  transform: translate(calc(var(--sx) + var(--stx)),calc(var(--sy) + var(--sty)));
 }
 .logic-wash {
   position: absolute;
@@ -367,6 +394,12 @@ main { min-height: 100vh; overflow: hidden; }
   transition: width 1s cubic-bezier(.16,.84,.22,1),height 1s cubic-bezier(.16,.84,.22,1),transform 1s cubic-bezier(.16,.84,.22,1);
 }
 .logic-orbit-b { width: 38%; height: 72%; border-color: rgba(255,159,28,.25); transform: translate(-50%,-50%) rotate(38deg); }
+.logic-image-card[data-active="false"] .logic-orbit-a {
+  transform: translate(calc(-50% + var(--sx) + var(--stx)),calc(-50% + var(--sy) + var(--sty))) rotate(-14deg);
+}
+.logic-image-card[data-active="false"] .logic-orbit-b {
+  transform: translate(calc(-50% - var(--sx) - var(--stx)),calc(-50% - var(--sy) - var(--sty))) rotate(38deg);
+}
 .logic-image-card[data-active="true"] .logic-orbit-a { width: 122%; height: 106%; transform: translate(calc(-50% + var(--mx) + var(--tx)),calc(-50% + var(--my) + var(--ty))) rotate(-26deg); }
 .logic-image-card[data-active="true"] .logic-orbit-b { width: 88%; height: 146%; transform: translate(calc(-50% - var(--mx) - var(--tx)),calc(-50% - var(--my) - var(--ty))) rotate(56deg); }
 .logic-path-d { width: 36%; left: 50%; top: 22%; transform: rotate(58deg); }
@@ -375,6 +408,9 @@ main { min-height: 100vh; overflow: hidden; }
 .logic-image-card[data-active="true"] .logic-path-c { width: 86%; left: -18%; top: 78%; transform: translate(calc(0px - var(--mx)),calc(0px - var(--my))) rotate(-12deg); }
 .logic-image-card[data-active="true"] .logic-path-d { width: 78%; top: -14%; transform: translate(var(--tx),var(--ty)) rotate(67deg); }
 .logic-node { animation: logic-node-drift 5s ease-in-out infinite alternate; }
+.logic-image-card[data-active="false"] .logic-node {
+  transform: translate(calc(var(--sx) + var(--stx)),calc(var(--sy) + var(--sty)));
+}
 .logic-node-7 { left: 52%; top: 11%; background: var(--orange); animation-delay: -2s; }
 .logic-node-8 { left: 47%; top: 84%; background: var(--violet); animation-delay: -4s; }
 .logic-image-card[data-active="true"] .logic-node { box-shadow: 0 8px 22px rgba(43,84,149,.22),0 0 22px currentColor; }
@@ -395,6 +431,9 @@ main { min-height: 100vh; overflow: hidden; }
   animation: logic-core-float 6s ease-in-out infinite alternate;
 }
 .logic-core > span { font-size: 28px; font-weight: 500; letter-spacing: 0; }
+.logic-image-card[data-active="false"] .logic-core {
+  transform: translate(calc(-50% + var(--sx) + var(--stx)),calc(-50% + var(--sy) + var(--sty))) rotate(-3deg);
+}
 .logic-image-card[data-active="true"] .logic-core {
   border-radius: 42% 58% 51% 49%;
   box-shadow: 0 24px 46px rgba(24,93,216,.28),inset 0 0 28px rgba(255,255,255,.55),0 0 44px rgba(255,159,28,.22);
@@ -407,6 +446,21 @@ main { min-height: 100vh; overflow: hidden; }
 }
 @keyframes logic-core-float { from { margin-top: -3px; } to { margin-top: 4px; } }
 @keyframes logic-node-drift { from { margin-top: -2px; } to { margin-top: 3px; } }
+@media (prefers-reduced-motion: reduce) {
+  .logic-wash,
+  .logic-core,
+  .logic-node,
+  .logic-path::after {
+    animation: none;
+  }
+  .logic-page-bloom,
+  .logic-wash,
+  .logic-orbit,
+  .logic-node,
+  .logic-core {
+    transition-duration: .01ms;
+  }
+}
 .dog-card { z-index: 2; width: 34%; height: 42%; right: 7%; bottom: 3%; transform: rotate(2deg); }
 .dog-card img { object-position: center center; }
 .data-card {

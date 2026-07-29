@@ -14,12 +14,18 @@ type MotionStyle = CSSProperties & {
   "--my": string;
   "--tx": string;
   "--ty": string;
+  "--sx": string;
+  "--sy": string;
+  "--stx": string;
+  "--sty": string;
 };
 
 export function HeroLogicImage() {
   const frameRef = useRef<HTMLDivElement>(null);
   const gestureStart = useRef({ x: 0, y: 0 });
   const dragging = useRef(false);
+  const bursting = useRef(false);
+  const burstTimer = useRef<number | undefined>(undefined);
   const [route, setRoute] = useState(0);
   const [tiltAvailable, setTiltAvailable] = useState(false);
 
@@ -37,11 +43,15 @@ export function HeroLogicImage() {
     const y = Math.max(-1.35, Math.min(1.35, ((clientY - bounds.top) / bounds.height - 0.5) * 2));
     frame.style.setProperty("--mx", `${x * 16}px`);
     frame.style.setProperty("--my", `${y * 16}px`);
+    frame.style.setProperty("--sx", `${x * 4}px`);
+    frame.style.setProperty("--sy", `${y * 4}px`);
   }, []);
 
   const resetPointer = useCallback(() => {
     frameRef.current?.style.setProperty("--mx", "0px");
     frameRef.current?.style.setProperty("--my", "0px");
+    frameRef.current?.style.setProperty("--sx", "0px");
+    frameRef.current?.style.setProperty("--sy", "0px");
   }, []);
 
   const applyTilt = useCallback((tiltX: number, tiltY: number) => {
@@ -49,8 +59,9 @@ export function HeroLogicImage() {
     if (!frame) return;
     frame.style.setProperty("--tx", `${tiltX * 22}px`);
     frame.style.setProperty("--ty", `${tiltY * 22}px`);
-    setActive(Math.abs(tiltX) + Math.abs(tiltY) > 0.16);
-  }, [setActive]);
+    frame.style.setProperty("--stx", `${tiltX * 5}px`);
+    frame.style.setProperty("--sty", `${tiltY * 5}px`);
+  }, []);
 
   const handleOrientation = useCallback((event: DeviceOrientationEvent) => {
     applyTilt(
@@ -58,6 +69,19 @@ export function HeroLogicImage() {
       Math.max(-1, Math.min(1, ((event.beta || 0) - 35) / 32)),
     );
   }, [applyTilt]);
+
+  useEffect(() => {
+    const followPointer = (event: PointerEvent) => {
+      if (event.pointerType === "mouse") {
+        applyPointer(event.clientX, event.clientY);
+      }
+    };
+    window.addEventListener("pointermove", followPointer, { passive: true });
+    return () => {
+      window.removeEventListener("pointermove", followPointer);
+      if (burstTimer.current) window.clearTimeout(burstTimer.current);
+    };
+  }, [applyPointer]);
 
   useEffect(() => {
     const orientationEvent = window.DeviceOrientationEvent as unknown as {
@@ -105,8 +129,14 @@ export function HeroLogicImage() {
     }
     if (movement < 8) setRoute((current) => (current + 1) % 3);
     if (event.pointerType !== "mouse") {
-      setActive(false);
-      resetPointer();
+      bursting.current = true;
+      setActive(true);
+      if (burstTimer.current) window.clearTimeout(burstTimer.current);
+      burstTimer.current = window.setTimeout(() => {
+        bursting.current = false;
+        setActive(false);
+        resetPointer();
+      }, 1200);
     }
   }
 
@@ -115,6 +145,10 @@ export function HeroLogicImage() {
     "--my": "0px",
     "--tx": "0px",
     "--ty": "0px",
+    "--sx": "0px",
+    "--sy": "0px",
+    "--stx": "0px",
+    "--sty": "0px",
   } as MotionStyle;
 
   return (
@@ -137,7 +171,7 @@ export function HeroLogicImage() {
         }
       }}
       onPointerLeave={() => {
-        if (!dragging.current) {
+        if (!dragging.current && !bursting.current) {
           setActive(false);
           resetPointer();
         }
@@ -153,6 +187,7 @@ export function HeroLogicImage() {
         resetPointer();
       }}
     >
+      <div className="logic-page-bloom" aria-hidden="true" />
       <div className="logic-photo-surface" aria-hidden="true" />
 
       <div className="logic-watercolor" aria-hidden="true">
