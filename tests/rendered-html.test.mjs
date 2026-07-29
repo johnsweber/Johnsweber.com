@@ -218,6 +218,10 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
     new URL("../lib/ai-video-processing.ts", import.meta.url),
     "utf8",
   );
+  const processingSource = await readFile(
+    new URL("../app/api/experiments/ai-video/processing/[taskId]/source/[mediaId]/route.ts", import.meta.url),
+    "utf8",
+  );
   const modal = await readFile(new URL("../modal_media_tools.py", import.meta.url), "utf8");
   const exportRoute = await readFile(
     new URL("../app/api/experiments/ai-video/scenes/[id]/export/route.ts", import.meta.url),
@@ -233,5 +237,8 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(processing, /scene_export/);
   assert.match(modal, /ffmpeg/);
   assert.match(modal, /merge_videos/);
+  assert.match(modal, /Range/);
+  assert.match(modal, /range\(4\)/);
+  assert.match(processingSource, /Content-Range/);
   assert.doesNotMatch(exportRoute, /requestUsesProduction|demoAssetFor/);
 });

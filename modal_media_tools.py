@@ -6,7 +6,7 @@ Then set MEDIA_TOOLS_MODAL_URL to the printed web endpoint root.
 import pathlib
 import json
 import subprocess
-import tempfile
+import time
 import uuid
 
 import modal
@@ -19,11 +19,49 @@ ROOT = pathlib.Path("/media")
 
 def _download(url: str, path: pathlib.Path, token: str):
     import httpx
-    with httpx.stream("GET", url, headers={"Authorization": f"Bearer {token}"}, timeout=120) as response:
-        response.raise_for_status()
-        with path.open("wb") as handle:
-            for chunk in response.iter_bytes():
-                handle.write(chunk)
+    last_error = None
+    for attempt in range(4):
+        offset = path.stat().st_size if path.exists() else 0
+        headers = {"Authorization": f"Bearer {token}"}
+        if offset:
+            headers["Range"] = f"bytes={offset}-"
+        try:
+            with httpx.stream(
+                "GET",
+                url,
+                headers=headers,
+                timeout=httpx.Timeout(180, connect=30),
+                follow_redirects=True,
+            ) as response:
+                if response.status_code == 416 and offset:
+                    return
+                response.raise_for_status()
+                resumed = offset > 0 and response.status_code == 206
+                mode = "ab" if resumed else "wb"
+                if not resumed:
+                    offset = 0
+                total = None
+                content_range = response.headers.get("content-range", "")
+                if "/" in content_range:
+                    total_text = content_range.rsplit("/", 1)[-1]
+                    if total_text.isdigit():
+                        total = int(total_text)
+                elif response.headers.get("content-length", "").isdigit():
+                    total = offset + int(response.headers["content-length"])
+                with path.open(mode) as handle:
+                    for chunk in response.iter_bytes(chunk_size=1024 * 1024):
+                        handle.write(chunk)
+                if total is not None and path.stat().st_size != total:
+                    raise IOError(
+                        f"Incomplete media download: {path.stat().st_size} of {total} bytes"
+                    )
+                return
+        except (httpx.HTTPError, OSError) as error:
+            last_error = error
+            if attempt == 3:
+                raise
+            time.sleep(0.5 * (2 ** attempt))
+    raise RuntimeError("Media download failed after retries") from last_error
 
 
 def _frame(source: pathlib.Path, output: pathlib.Path):
