@@ -685,7 +685,7 @@ function CreateView() {
   return (
     <main className="aiv-page">
       <ExperimentHeader />
-      <form className="aiv-create" onSubmit={submit}>
+      <form className="aiv-create" onSubmit={submit} noValidate>
         <div className="aiv-create-heading">
           <p className="aiv-kicker">CREATE</p>
           <h1>Make something new.</h1>
@@ -796,7 +796,6 @@ function CreateView() {
                   type="file"
                   accept="image/jpeg,image/png,image/webp"
                   onChange={(event) => setSource(event.target.files?.[0] || null)}
-                  required
                 />
               </label>
             </div>
@@ -814,7 +813,6 @@ function CreateView() {
                     : "A wide neon city waking at dawn, with distant traffic and soft rain…"
               }
               maxLength={2000}
-              required
             />
             <small>{prompt.length}/2000</small>
           </label>
@@ -864,15 +862,7 @@ function CreateView() {
           <div><Clock3 aria-hidden="true" /><span>After submission, pending work appears immediately in your private library.</span></div>
           <button
             type="submit"
-            disabled={
-              submitting ||
-              !prompt ||
-              (useProduction &&
-                creationType === "video" &&
-                videoModel.supportsImage &&
-                !source &&
-                !extendMedia)
-            }
+            disabled={submitting}
           >
             {submitting ? "Submitting…" : `Create ${creationType}`} <WandSparkles aria-hidden="true" />
           </button>
