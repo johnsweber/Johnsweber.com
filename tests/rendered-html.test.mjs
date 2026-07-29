@@ -135,6 +135,9 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /SDXL Base 1\.0/);
   assert.match(source, /Animagine XL 4\.0/);
   assert.match(source, /Wan \+ LTX/);
+  assert.match(source, /Choose reference image/);
+  assert.match(source, /Choose and preview a reference image/);
+  assert.doesNotMatch(source, /videoModel\.supportsImage && useProduction && \(/);
   assert.match(source, /onSubmit=\{submit\} noValidate/);
   assert.doesNotMatch(source, /disabled=\{\s*submitting \|\|\s*!prompt/);
   assert.doesNotMatch(source, /sourceMode|Generate source locally/);

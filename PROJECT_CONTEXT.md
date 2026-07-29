@@ -87,7 +87,9 @@ AI Video experiment (login required):
 
 - `/experiments/ai-video` — experiment home.
 - `/experiments/ai-video/create` — Picture/Video pill selector, generation
-  forms, and submitted/pending result states.
+  forms, and submitted/pending result states. Image-capable video models always
+  expose the reference-image picker and local preview; Demo mode previews the
+  selection but substitutes a sample result without uploading it.
 - `/experiments/ai-video/library` — unified private picture/video/scene library with
   All, Picture, Video, and Scene filters. Each card has an actions menu; Delete removes
   the user-owned media row, linked video job, and associated private R2 objects.

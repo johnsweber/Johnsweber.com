@@ -1028,7 +1028,7 @@ function CreateView() {
               <strong>
                 {creationType === "picture"
                   ? "Describe the picture"
-                  : videoModel.supportsImage && useProduction
+                  : videoModel.supportsImage
                     ? "Add an image and describe the motion"
                     : "Describe the whole scene"}
               </strong>
@@ -1037,8 +1037,10 @@ function CreateView() {
                   ? useProduction
                     ? "Your connected picture model will create a private 1024 × 576 image."
                     : "Demo mode returns a free example picture for your private library."
-                  : videoModel.supportsImage && useProduction
-                    ? "Upload a JPG, PNG, or WebP up to 12 MB."
+                  : videoModel.supportsImage
+                    ? useProduction
+                      ? "Upload a JPG, PNG, or WebP up to 12 MB."
+                      : "Choose and preview a reference image. Demo mode still returns a sample video."
                     : useProduction
                       ? "LTX creates from text and includes audio."
                       : "Demo mode returns a free example video; no source image is needed."}
@@ -1060,7 +1062,7 @@ function CreateView() {
               </span>
               </div>
             </div>
-          ) : creationType === "video" && videoModel.supportsImage && useProduction && (
+          ) : creationType === "video" && videoModel.supportsImage && (
             <div className="aiv-reference-block">
               <span className="aiv-reference-label"><PictureIcon aria-hidden="true" /> Reference image</span>
               <label className={`aiv-upload ${preview ? "has-preview" : ""}`}>
