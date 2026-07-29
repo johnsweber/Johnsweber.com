@@ -41,6 +41,27 @@ const projects = [
   },
 ];
 
+const careerHighlights = [
+  {
+    marker: "20+",
+    label: "YEARS ACROSS THE WEB",
+    title: "Designer, developer, product leader.",
+    copy: "A career shaped by seeing digital work from every side—from visual design and front-end craft to UX, product strategy, clients, and teams.",
+  },
+  {
+    marker: "2012",
+    label: "ENTERPRISE CHANGE",
+    title: "Responsive before it was routine.",
+    copy: "Led responsive UX and front-end teams through Humana's mobile transition, coached six development teams, and helped deliver the rebrand on schedule.",
+  },
+  {
+    marker: "NOW",
+    label: "PRODUCT LEADERSHIP",
+    title: "Ideas into useful systems.",
+    copy: "Bringing design judgment, technical fluency, and delivery leadership together across GoodChat, Small Great Ventures, and hands-on AI experiments.",
+  },
+];
+
 export default function Home() {
   const [probe, setProbe] = useState<ProbeResult | null>(null);
   const [running, setRunning] = useState(false);
@@ -104,6 +125,40 @@ export default function Home() {
         <div><span>01</span><strong>Bright</strong><p>Optimistic technology with room to breathe.</p></div>
         <div><span>02</span><strong>Intelligent</strong><p>Real technical depth, thoughtfully explained.</p></div>
         <div><span>03</span><strong>Useful</strong><p>Every experiment points toward a human need.</p></div>
+      </section>
+
+      <section className="section career" id="career">
+        <div className="career-heading">
+          <div>
+            <div className="section-label">CAREER, IN BRIEF</div>
+            <h2>The connective tissue between design, technology, and delivery.</h2>
+          </div>
+          <p>
+            I started as a designer, learned to build what I designed, and grew
+            into leading the people and processes that bring digital products
+            to life.
+          </p>
+        </div>
+        <div className="career-history">
+          {careerHighlights.map((highlight) => (
+            <article className="career-highlight" key={highlight.marker}>
+              <div className="career-marker">
+                <span>{highlight.marker}</span>
+                <small>{highlight.label}</small>
+              </div>
+              <h3>{highlight.title}</h3>
+              <p>{highlight.copy}</p>
+            </article>
+          ))}
+        </div>
+        <div className="career-actions">
+          <Link className="career-link career-link-primary" href="/portfolio">
+            Explore the portfolio <span>→</span>
+          </Link>
+          <Link className="career-link" href="/resume">
+            Read the résumé <span>→</span>
+          </Link>
+        </div>
       </section>
 
       <section className="section work" id="work">

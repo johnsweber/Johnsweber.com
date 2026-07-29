@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  BriefcaseBusiness,
+  FileText,
   FlaskConical,
   Grid3X3,
   House,
@@ -18,9 +20,11 @@ import { useAuthConfigured } from "./auth-provider";
 import { useProductionMode } from "@/lib/use-production-mode";
 
 const navItems = [
-  { label: "Home", detail: "The starting point", href: "#top", icon: House },
-  { label: "Work", detail: "Projects and directions", href: "#work", icon: Sparkles },
-  { label: "Live lab", detail: "Edge-to-GPU experiments", href: "#lab", icon: FlaskConical },
+  { label: "Home", detail: "The starting point", href: "/#top", icon: House },
+  { label: "Portfolio", detail: "Selected work and case notes", href: "/portfolio", icon: BriefcaseBusiness },
+  { label: "Résumé", detail: "Career history and capabilities", href: "/resume", icon: FileText },
+  { label: "Work", detail: "Projects and directions", href: "/#work", icon: Sparkles },
+  { label: "Live lab", detail: "Edge-to-GPU experiments", href: "/#lab", icon: FlaskConical },
   { label: "AI Video", detail: "Private generative video lab", href: "/experiments/ai-video", icon: Video },
 ];
 
@@ -212,9 +216,9 @@ function ConfiguredNavigation() {
         modeControl={<ProductionModeControl userId={user?.id} />}
       />
       <div className="nav-links">
-        <a href="#work">Work</a>
-        <a href="#lab">Live lab</a>
-        <a href="#about">About</a>
+        <Link href="/portfolio">Portfolio</Link>
+        <Link href="/resume">Résumé</Link>
+        <a href="/#lab">Live lab</a>
       </div>
       {isLoaded && isSignedIn ? (
         <button className="nav-account" type="button" onClick={() => openUserProfile()}>
@@ -256,9 +260,9 @@ function UnconfiguredNavigation() {
         modeControl={<ProductionModeControl />}
       />
       <div className="nav-links">
-        <a href="#work">Work</a>
-        <a href="#lab">Live lab</a>
-        <a href="#about">About</a>
+        <Link href="/portfolio">Portfolio</Link>
+        <Link href="/resume">Résumé</Link>
+        <a href="/#lab">Live lab</a>
       </div>
       <Link className="nav-login" href="/login">
         <LogIn size={17} aria-hidden="true" />

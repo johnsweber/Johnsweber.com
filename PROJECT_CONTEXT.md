@@ -64,6 +64,12 @@ Public/general:
 - `/hero-preview` — unlinked, no-index phone preview for the pointer/touch and
   device-orientation-responsive Logic Playground hero concept. It is a draft
   route and is not yet used by the production homepage.
+- `/portfolio` — selected, source-verified case notes spanning Humana
+  responsive web leadership, GoodChat product/design principles, and the
+  current applied-AI playground.
+- `/resume` — public career summary and selected experience. Career facts must
+  follow `docs/career-source-notes.md`; unverified metrics and case-study
+  outcomes are intentionally excluded.
 - Grid icon in the top-left opens the site navigation.
 - The grid navigation includes a Demo/Production pill labeled `Use Production`.
   It is stored per user in browser `sessionStorage`, defaults to Demo (`false`)

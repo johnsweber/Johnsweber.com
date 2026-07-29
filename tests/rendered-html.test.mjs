@@ -37,6 +37,29 @@ test("renders the John Weber playground", async () => {
   assert.doesNotMatch(html, /codex-preview|react-loading-skeleton/i);
 });
 
+test("renders source-verified career, portfolio, and resume paths", async () => {
+  const homeResponse = await render();
+  const home = await homeResponse.text();
+  assert.match(home, /CAREER, IN BRIEF/);
+  assert.match(home, /Explore the portfolio/);
+  assert.match(home, /Read the résumé/);
+
+  const portfolioResponse = await render("/portfolio");
+  assert.equal(portfolioResponse.status, 200);
+  const portfolio = await portfolioResponse.text();
+  assert.match(portfolio, /Making a desktop-scale rebrand work everywhere/);
+  assert.match(portfolio, /Designing for trust, connection, and human-ness/);
+  assert.match(portfolio, /Turning model infrastructure into a friendly playground/);
+
+  const resumeResponse = await render("/resume");
+  assert.equal(resumeResponse.status, 200);
+  const resume = await resumeResponse.text();
+  assert.match(resume, /Chief Product Officer/);
+  assert.match(resume, /Senior Design Lead/);
+  assert.match(resume, /coached six additional development teams/i);
+  assert.doesNotMatch(resume, /100\+ developers|\$1M|double-digit growth/i);
+});
+
 test("uses the interactive logic portrait instead of the AI badge", async () => {
   const home = await readFile(new URL("../app/page.tsx", import.meta.url), "utf8");
   const visual = await readFile(
