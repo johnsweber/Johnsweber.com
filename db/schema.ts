@@ -1,4 +1,4 @@
-import { index, integer, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 // Shared identity metadata is deliberately kept separate from experiment data.
 // Clerk remains the source of truth for authentication and account security.
@@ -66,6 +66,7 @@ export const aiVideoJobs = sqliteTable(
     errorMessage: text("error_message"),
     providerLastContactAt: text("provider_last_contact_at"),
     retryCount: integer("retry_count").notNull().default(0),
+    generationMetricId: text("generation_metric_id"),
     createdAt: text("created_at").notNull(),
     updatedAt: text("updated_at").notNull(),
     completedAt: text("completed_at"),
@@ -74,6 +75,33 @@ export const aiVideoJobs = sqliteTable(
     index("ai_video_jobs_user_created_idx").on(table.userId, table.createdAt),
     index("ai_video_jobs_user_status_idx").on(table.userId, table.status),
     uniqueIndex("ai_video_jobs_modal_call_uq").on(table.modalCallId),
+  ],
+);
+
+// Anonymous operational measurements only. This table deliberately contains no
+// user, media, job, prompt, output, filename, or object-storage identifiers.
+export const aiVideoGenerationMetrics = sqliteTable(
+  "ai_video_generation_metrics",
+  {
+    id: text("id").primaryKey(),
+    mediaType: text("media_type").notNull(),
+    modelKey: text("model_key").notNull(),
+    provider: text("provider").notNull(),
+    settingsJson: text("settings_json").notNull(),
+    coldStartUsed: integer("cold_start_used", { mode: "boolean" }).notNull(),
+    outcome: text("outcome").notNull().default("pending"),
+    renderSeconds: real("render_seconds"),
+    startedAt: text("started_at").notNull(),
+    completedAt: text("completed_at"),
+  },
+  (table) => [
+    index("ai_video_generation_metrics_estimate_idx").on(
+      table.mediaType,
+      table.modelKey,
+      table.outcome,
+      table.coldStartUsed,
+      table.completedAt,
+    ),
   ],
 );
 

@@ -1,4 +1,5 @@
 import {
+  completeGenerationMetric,
   getAiVideoJob,
   getAiVideoMedia,
   getAiVideoMediaByJob,
@@ -252,6 +253,7 @@ export async function refreshAiVideoJob(job: AiVideoJob, origin?: string) {
     }
 
     const completedAt = new Date().toISOString();
+    await completeGenerationMetric(job.generation_metric_id, "succeeded", completedAt);
     const media = await getAiVideoMediaByJob(job.id, job.user_id);
     const processingService = processingEndpoint();
     const processingAuth = processingHeaders();

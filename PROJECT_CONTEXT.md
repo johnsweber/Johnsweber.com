@@ -167,6 +167,16 @@ AI Video APIs:
 
 Video models are declared in `lib/ai-video-models.ts`.
 
+Every picture and video generation writes one anonymous timing record to
+`ai_video_generation_metrics`. It contains the model/provider, non-content
+generation settings, an inferred cold-start flag, outcome, and elapsed render
+seconds. It deliberately excludes user IDs, prompts, media/job IDs, filenames,
+R2 keys, and output details. The private job row retains only an internal
+metric-record ID so asynchronous completion, failure, and cancellation can
+finalize the measurement idempotently. Modal cold starts are inferred when
+there has been no metric activity for the same model/provider in the preceding
+five minutes; this is an estimate, not provider telemetry.
+
 - Wan 2.2 I2V-A14B
   - Image-to-video; source image required.
   - 480p (`832x480`) or 720p (`1280x720`).

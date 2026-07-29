@@ -27,6 +27,7 @@ export type AiVideoJob = {
   error_message: string | null;
   provider_last_contact_at?: string | null;
   retry_count?: number;
+  generation_metric_id?: string | null;
   created_at: string;
   updated_at: string;
   completed_at: string | null;
@@ -165,6 +166,7 @@ export async function ensureAiVideoSchema() {
         error_message TEXT,
         provider_last_contact_at TEXT,
         retry_count INTEGER DEFAULT 0 NOT NULL,
+        generation_metric_id TEXT,
         created_at TEXT NOT NULL,
         updated_at TEXT NOT NULL,
         completed_at TEXT
@@ -173,6 +175,25 @@ export async function ensureAiVideoSchema() {
     db.prepare(`
       CREATE INDEX IF NOT EXISTS ai_video_jobs_user_created_idx
       ON ai_video_jobs (user_id, created_at)
+    `),
+    db.prepare(`
+      CREATE TABLE IF NOT EXISTS ai_video_generation_metrics (
+        id TEXT PRIMARY KEY NOT NULL,
+        media_type TEXT NOT NULL,
+        model_key TEXT NOT NULL,
+        provider TEXT NOT NULL,
+        settings_json TEXT NOT NULL,
+        cold_start_used INTEGER NOT NULL,
+        outcome TEXT DEFAULT 'pending' NOT NULL,
+        render_seconds REAL,
+        started_at TEXT NOT NULL,
+        completed_at TEXT
+      )
+    `),
+    db.prepare(`
+      CREATE INDEX IF NOT EXISTS ai_video_generation_metrics_estimate_idx
+      ON ai_video_generation_metrics
+        (media_type, model_key, outcome, cold_start_used, completed_at)
     `),
     db.prepare(`
       CREATE INDEX IF NOT EXISTS ai_video_jobs_user_status_idx
@@ -332,9 +353,9 @@ export async function insertAiVideoJob(job: AiVideoJob) {
         status, progress, quality, duration_seconds, width, height, fps, seed,
         estimated_seconds, modal_call_id, modal_result_path, source_object_key,
         source_file_name, source_provider, source_model_key, thumbnail_object_key, last_frame_object_key, output_object_key,
-        output_mime_type, error_message, created_at, updated_at, completed_at
+        output_mime_type, error_message, generation_metric_id, created_at, updated_at, completed_at
       ) VALUES (
-        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
+        ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?
       )
     `)
     .bind(
@@ -364,10 +385,76 @@ export async function insertAiVideoJob(job: AiVideoJob) {
       job.output_object_key,
       job.output_mime_type,
       job.error_message,
+      job.generation_metric_id || null,
       job.created_at,
       job.updated_at,
       job.completed_at,
     )
+    .run();
+}
+
+export type AiVideoGenerationMetricInput = {
+  id: string;
+  mediaType: "picture" | "video";
+  modelKey: string;
+  provider: string;
+  settings: Record<string, string | number | boolean | null>;
+  coldStartUsed: boolean;
+  startedAt: string;
+};
+
+export async function inferGenerationColdStart(
+  modelKey: string,
+  provider: string,
+  now = new Date(),
+) {
+  if (provider !== "modal") return false;
+  const cutoff = new Date(now.getTime() - 5 * 60_000).toISOString();
+  const recent = await (await getAiVideoDb())
+    .prepare(`
+      SELECT 1 FROM ai_video_generation_metrics
+      WHERE model_key = ? AND provider = ? AND started_at >= ?
+      ORDER BY started_at DESC LIMIT 1
+    `)
+    .bind(modelKey, provider, cutoff)
+    .first();
+  return !recent;
+}
+
+export async function insertGenerationMetric(metric: AiVideoGenerationMetricInput) {
+  await (await getAiVideoDb())
+    .prepare(`
+      INSERT INTO ai_video_generation_metrics (
+        id, media_type, model_key, provider, settings_json, cold_start_used,
+        outcome, render_seconds, started_at, completed_at
+      ) VALUES (?, ?, ?, ?, ?, ?, 'pending', NULL, ?, NULL)
+    `)
+    .bind(
+      metric.id,
+      metric.mediaType,
+      metric.modelKey,
+      metric.provider,
+      JSON.stringify(metric.settings),
+      metric.coldStartUsed ? 1 : 0,
+      metric.startedAt,
+    )
+    .run();
+}
+
+export async function completeGenerationMetric(
+  id: string | null | undefined,
+  outcome: "succeeded" | "failed",
+  completedAt = new Date().toISOString(),
+) {
+  if (!id) return;
+  await (await getAiVideoDb())
+    .prepare(`
+      UPDATE ai_video_generation_metrics
+      SET outcome = ?, completed_at = ?,
+          render_seconds = MAX(0, (julianday(?) - julianday(started_at)) * 86400.0)
+      WHERE id = ? AND outcome = 'pending'
+    `)
+    .bind(outcome, completedAt, completedAt, id)
     .run();
 }
 
@@ -442,12 +529,24 @@ export async function updateAiVideoJob(
   if (!entries.length) return;
   const assignments = entries.map(([key]) => `${key} = ?`).join(", ");
   const values = entries.map(([, value]) => value);
-  await (await getAiVideoDb())
+  const db = await getAiVideoDb();
+  await db
     .prepare(
       `UPDATE ai_video_jobs SET ${assignments}, updated_at = ? WHERE id = ? AND user_id = ?`,
     )
     .bind(...values, new Date().toISOString(), id, userId)
     .run();
+  if (updates.status === "complete" || updates.status === "failed") {
+    const row = await db
+      .prepare("SELECT generation_metric_id FROM ai_video_jobs WHERE id = ? AND user_id = ?")
+      .bind(id, userId)
+      .first<{ generation_metric_id: string | null }>();
+    await completeGenerationMetric(
+      row?.generation_metric_id,
+      updates.status === "complete" ? "succeeded" : "failed",
+      updates.completed_at || new Date().toISOString(),
+    );
+  }
 }
 
 export async function insertAiVideoMedia(media: AiVideoMedia) {

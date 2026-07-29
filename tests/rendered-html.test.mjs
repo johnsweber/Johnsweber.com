@@ -444,3 +444,34 @@ test("reconciles provider work with bounded retry and terminal policies", async 
   assert.match(queue, /lastProviderContactAt/);
   assert.match(queue, /gpuShutdownStatus/);
 });
+
+test("records anonymous generation timing without user or output data", async () => {
+  const migration = await readFile(
+    new URL("../drizzle/0005_anonymous_generation_metrics.sql", import.meta.url),
+    "utf8",
+  );
+  const database = await readFile(new URL("../db/ai-video.ts", import.meta.url), "utf8");
+  const videoRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/jobs/route.ts", import.meta.url),
+    "utf8",
+  );
+  const pictureRoute = await readFile(
+    new URL("../app/api/experiments/ai-video/local-source/route.ts", import.meta.url),
+    "utf8",
+  );
+  const metricTable = migration.match(
+    /CREATE TABLE `ai_video_generation_metrics` \(([\s\S]*?)\);/,
+  )?.[1] || "";
+  assert.match(metricTable, /settings_json/);
+  assert.match(metricTable, /cold_start_used/);
+  assert.match(metricTable, /render_seconds/);
+  assert.match(metricTable, /outcome/);
+  assert.doesNotMatch(
+    metricTable,
+    /user_id|media_id|job_id|prompt|output|object_key|file_name/,
+  );
+  assert.match(database, /WHERE id = \? AND outcome = 'pending'/);
+  assert.match(videoRoute, /insertGenerationMetric/);
+  assert.match(videoRoute, /hasReferenceImage/);
+  assert.match(pictureRoute, /completeGenerationMetric/);
+});

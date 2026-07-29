@@ -1,10 +1,13 @@
 import { Buffer } from "node:buffer";
 import {
   ensureAiVideoSchema,
+  completeGenerationMetric,
   completePendingAiVideoMedia,
   getAiVideoMedia,
   getAiVideoMediaItem,
   insertAiVideoMedia,
+  inferGenerationColdStart,
+  insertGenerationMetric,
   updateAiVideoMedia,
   upsertSharedUser,
   type AiVideoMedia,
@@ -20,6 +23,7 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   let mediaId = "";
   let userId = "";
+  let generationMetricId = "";
   try {
     const user = await requireApiUser(request);
     userId = user.id;
@@ -81,6 +85,28 @@ export async function POST(request: Request) {
 
     mediaId = crypto.randomUUID();
     const now = new Date().toISOString();
+    generationMetricId = crypto.randomUUID();
+    const generationProvider = useProduction ? model.provider : "demo";
+    await insertGenerationMetric({
+      id: generationMetricId,
+      mediaType: "picture",
+      modelKey: model.key,
+      provider: generationProvider,
+      coldStartUsed: await inferGenerationColdStart(model.key, generationProvider),
+      startedAt: now,
+      settings: {
+        preset: String(input.preset || "medium"),
+        aspect: String(input.aspect || "landscape"),
+        width: dimensions.width,
+        height: dimensions.height,
+        steps: preset.steps,
+        seed,
+        hasReferenceImage: Boolean(referenceMediaId),
+        strength,
+        production: useProduction,
+        stopGpuWhenQueueComplete,
+      },
+    });
     const media: AiVideoMedia = {
       id: mediaId,
       user_id: user.id,
@@ -129,6 +155,7 @@ export async function POST(request: Request) {
         content_mime_type: copied.contentType,
         completed_at: completedAt,
       });
+      await completeGenerationMetric(generationMetricId, "succeeded", completedAt);
       const complete = await getAiVideoMediaItem(mediaId, user.id);
       return Response.json(
         { media: complete ? publicAiVideoMedia(complete) : null },
@@ -267,6 +294,7 @@ export async function POST(request: Request) {
       await (await getAiVideoMedia()).delete(objectKey);
       return Response.json({ error: "Cancelled by user.", mediaId }, { status: 409 });
     }
+    await completeGenerationMetric(generationMetricId, "succeeded", completedAt);
     const complete = await getAiVideoMediaItem(mediaId, user.id);
     return Response.json(
       { media: complete ? publicAiVideoMedia(complete) : null },
@@ -281,6 +309,7 @@ export async function POST(request: Request) {
         error_message: message,
       }).catch(() => undefined);
     }
+    await completeGenerationMetric(generationMetricId, "failed").catch(() => undefined);
     if (error instanceof Response) return error;
     return Response.json({ error: message, mediaId: mediaId || undefined }, { status: 503 });
   }

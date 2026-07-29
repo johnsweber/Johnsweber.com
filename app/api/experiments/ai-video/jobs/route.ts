@@ -1,9 +1,12 @@
 import { Buffer } from "node:buffer";
 import {
   ensureAiVideoSchema,
+  completeGenerationMetric,
   createOrAppendScene,
   getAiVideoMediaItem,
   getAiVideoMedia,
+  inferGenerationColdStart,
+  insertGenerationMetric,
   insertAiVideoMedia,
   insertAiVideoJob,
   listAiVideoJobs,
@@ -87,6 +90,7 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
+  let generationMetricId = "";
   try {
     const user = await requireApiUser(request);
     await ensureAiVideoSchema();
@@ -259,6 +263,32 @@ export async function POST(request: Request) {
     });
 
     const now = new Date().toISOString();
+    generationMetricId = crypto.randomUUID();
+    const generationProvider = useProduction ? "modal" : "demo";
+    await insertGenerationMetric({
+      id: generationMetricId,
+      mediaType: "video",
+      modelKey,
+      provider: generationProvider,
+      coldStartUsed: await inferGenerationColdStart(modelKey, generationProvider),
+      startedAt: now,
+      settings: {
+        generationMode: model.mode,
+        quality: recordedQuality,
+        durationSeconds,
+        width,
+        height,
+        fps,
+        frames,
+        inferenceSteps,
+        guidanceScale,
+        videoCrf,
+        seed: seedValue,
+        hasReferenceImage: Boolean(sourceObjectKey),
+        production: useProduction,
+        stopGpuWhenQueueComplete,
+      },
+    });
     const media: AiVideoMedia = {
       id,
       user_id: user.id,
@@ -325,6 +355,7 @@ export async function POST(request: Request) {
       output_object_key: null,
       output_mime_type: null,
       error_message: null,
+      generation_metric_id: generationMetricId,
       created_at: now,
       updated_at: now,
       completed_at: null,
@@ -478,6 +509,7 @@ export async function POST(request: Request) {
       { status: 202 },
     );
   } catch (error) {
+    await completeGenerationMetric(generationMetricId, "failed").catch(() => undefined);
     return errorResponse(error);
   }
 }
