@@ -335,6 +335,9 @@ test("supports saved last frames, extendable scenes, and CPU exports", async () 
   assert.match(app, /Reference image/);
   assert.match(app, /Previewing the saved frame/);
   assert.match(app, /function SceneView/);
+  assert.match(app, /aria-label=\{isPlaying \? "Pause scene" : "Play scene"\}/);
+  assert.match(app, /controls=\{false\}/);
+  assert.match(app, /wasPlayingBeforeScrub/);
   assert.match(app, /onLoadedMetadata/);
   assert.match(app, /durationSeconds: duration/);
   assert.match(app, /function ScannableVideo/);

@@ -15,6 +15,7 @@ import {
   LockKeyhole,
   EllipsisVertical,
   PanelsTopLeft,
+  Pause,
   Pencil,
   Play,
   Plus,
@@ -2434,11 +2435,13 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   const [pickerLoading, setPickerLoading] = useState(false);
   const [libraryVideos, setLibraryVideos] = useState<PublicMedia[]>([]);
   const [sources, setSources] = useState<Record<string, string>>({});
+  const [isPlaying, setIsPlaying] = useState(false);
   const [playbackTime, setPlaybackTime] = useState(0);
   const [timelinePreview, setTimelinePreview] = useState<number | null>(null);
   const sceneTimelineRef = useRef<HTMLDivElement>(null);
   const dirtyRef = useRef(false);
   const playbackRefs = useRef(new Map<string, HTMLVideoElement>());
+  const wasPlayingBeforeScrub = useRef(false);
   const savedDurations = useRef(new Map<string, number>());
   const observedExportPending = useRef(false);
   const playableKey = items
@@ -2561,15 +2564,15 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
   useEffect(() => {
     if (!allVideosReady) return;
     playbackRefs.current.forEach((video, mediaId) => {
-      if (activeMediaId === mediaId) {
+      if (activeMediaId === mediaId && isPlaying) {
         void video.play().catch(() => undefined);
       } else {
         video.pause();
       }
     });
-  }, [allVideosReady, activeMediaId]);
+  }, [allVideosReady, activeMediaId, isPlaying]);
 
-  function selectClip(itemIndex: number, localTime = 0, play = true) {
+  function selectClip(itemIndex: number, localTime = 0, play = isPlaying) {
     if (itemIndex < 0 || itemIndex >= items.length) return;
     playbackRefs.current.forEach(video => video.pause());
     const video = playbackRefs.current.get(items[itemIndex]?.id);
@@ -2578,6 +2581,17 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
       if (play) void video.play().catch(() => undefined);
     }
     setIndex(itemIndex);
+    setIsPlaying(play);
+  }
+
+  function togglePlayback() {
+    if (!allVideosReady) return;
+    if (playbackTime >= sceneDuration) {
+      selectClip(0, 0, true);
+      setPlaybackTime(0);
+      return;
+    }
+    setIsPlaying(current => !current);
   }
 
   const sceneDuration = items.reduce(
@@ -2608,10 +2622,10 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
       Math.max(0, ((clientX - bounds.left) / bounds.width) * sceneDuration),
     );
   }
-  function seekScene(sceneTime: number) {
+  function seekScene(sceneTime: number, play = isPlaying) {
     const target = locateSceneTime(sceneTime);
     setPlaybackTime(sceneTime);
-    selectClip(target.itemIndex, target.localTime);
+    selectClip(target.itemIndex, target.localTime, play);
   }
 
   async function openLibraryPicker() {
@@ -2707,14 +2721,16 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 }}
                 className={`aiv-scene-video ${itemIndex === index ? "active" : ""}`}
                 src={sources[item.id]}
-                controls={itemIndex === index}
+                controls={false}
+                disablePictureInPicture
                 playsInline
                 preload="auto"
                 onEnded={() => {
                   if (itemIndex + 1 < items.length) {
-                    selectClip(itemIndex + 1);
+                    selectClip(itemIndex + 1, 0, true);
                   } else {
                     setPlaybackTime(sceneDuration);
+                    setIsPlaying(false);
                   }
                 }}
                 onTimeUpdate={event => {
@@ -2735,6 +2751,16 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
                 <strong>{hasPendingVideos ? "Finishing the scene videos..." : "Preloading the complete scene..."}</strong>
                 <span>Playback begins when every clip is ready for a seamless transition.</span>
               </div>
+            )}
+            {allVideosReady && (
+              <button
+                type="button"
+                className="aiv-scene-play-toggle"
+                onClick={togglePlayback}
+                aria-label={isPlaying ? "Pause scene" : "Play scene"}
+              >
+                {isPlaying ? <Pause aria-hidden="true" /> : <Play aria-hidden="true" />}
+              </button>
             )}
           </div>
           <div className="aiv-player-info">
@@ -2757,6 +2783,8 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
               aria-valuenow={Math.round(timelinePreview ?? playbackTime)}
               onPointerDown={event => {
                 event.currentTarget.setPointerCapture(event.pointerId);
+                wasPlayingBeforeScrub.current = isPlaying;
+                setIsPlaying(false);
                 playbackRefs.current.get(items[index]?.id)?.pause();
                 setTimelinePreview(sceneTimeAt(event.clientX));
               }}
@@ -2767,7 +2795,7 @@ function EditableSceneView({ sceneId }: { sceneId: string }) {
               }}
               onPointerUp={event => {
                 const time = sceneTimeAt(event.clientX);
-                seekScene(time);
+                seekScene(time, wasPlayingBeforeScrub.current);
                 setTimelinePreview(null);
                 if (event.currentTarget.hasPointerCapture(event.pointerId)) {
                   event.currentTarget.releasePointerCapture(event.pointerId);

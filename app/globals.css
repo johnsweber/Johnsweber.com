@@ -2151,9 +2151,10 @@ body.menu-open { overflow: hidden; }
 .aiv-scene-stage { position: relative; width: 100%; max-width: 100%; min-width: 0; min-height: 0; height: auto; aspect-ratio: 16/9; overflow: hidden; contain: layout paint; background: #000; }
 .aiv-scene-video { position: absolute; inset: 0; z-index: 1; display: block; width: 100%; max-width: 100%; min-width: 0; height: 100%; max-height: 100%; min-height: 0; object-fit: contain; object-position: center; opacity: 0; pointer-events: none; background: #000; }
 .aiv-scene-video.active { z-index: 10; opacity: 1; pointer-events: auto; }
-.aiv-scene-video::-webkit-media-controls-timeline,
-.aiv-scene-video::-webkit-media-controls-current-time-display,
-.aiv-scene-video::-webkit-media-controls-time-remaining-display { display: none; }
+.aiv-scene-video::-webkit-media-controls { display: none !important; }
+.aiv-scene-play-toggle { position: absolute; left: 1rem; bottom: 1rem; z-index: 20; width: 48px; height: 48px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.24); border-radius: 50%; color: white; background: rgba(6,5,10,.72); box-shadow: 0 8px 28px rgba(0,0,0,.35); backdrop-filter: blur(12px); cursor: pointer; }
+.aiv-scene-play-toggle:hover, .aiv-scene-play-toggle:focus-visible { border-color: #72a8ff; background: rgba(39,104,220,.85); outline: none; }
+.aiv-scene-play-toggle svg { width: 20px; height: 20px; }
 .aiv-scene-stage > .aiv-player-message { position: absolute; inset: 0; z-index: 3; display: grid; place-content: center; text-align: center; background: #0d0c11; }
 .aiv-scene-timeline-wrap { margin: .75rem .25rem 1rem; }
 .aiv-scene-timeline { position: relative; height: 86px; display: flex; border: 1px solid rgba(255,255,255,.18); border-radius: 12px; background: #16141b; cursor: crosshair; touch-action: none; user-select: none; outline: none; }
