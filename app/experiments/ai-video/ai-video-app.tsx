@@ -1309,11 +1309,6 @@ function CreateView() {
         return;
       }
 
-      if (videoModelKey === "nava" && useProduction) {
-        throw new Error(
-          "NAVA Production is staged but not enabled while its Modal image finishes validation. Demo mode is available now.",
-        );
-      }
       const form = new FormData();
       form.set("modelKey", videoModelKey);
       form.set("quality", quality);

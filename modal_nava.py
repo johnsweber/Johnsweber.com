@@ -16,10 +16,14 @@ from pathlib import Path
 import modal
 
 APP_NAME = "nava-audio-video"
-MODEL_REPO = "baidu/NAVA"
+MODEL_REPO = "ernie-research/NAVA"
 MODEL_ROOT = Path("/models/NAVA")
 OUTPUT_ROOT = Path("/outputs")
 NAVA_ROOT = Path("/opt/NAVA")
+FLASH_ATTN_WHEEL = (
+    "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.3/"
+    "flash_attn-2.8.3%2Bcu12torch2.8cxx11abiFALSE-cp310-cp310-linux_x86_64.whl"
+)
 
 app = modal.App(APP_NAME)
 model_volume = modal.Volume.from_name("nava-model-cache", create_if_missing=True)
@@ -28,30 +32,18 @@ output_volume = modal.Volume.from_name("nava-generated-videos", create_if_missin
 runtime = (
     modal.Image.from_registry(
         "nvidia/cuda:12.8.1-cudnn-devel-ubuntu22.04",
-        add_python="3.11",
+        add_python="3.10",
     )
     .apt_install("ffmpeg", "git", "ninja-build")
     .run_commands(
         "pip install --index-url https://download.pytorch.org/whl/cu128 "
-        "torch==2.9.1 torchvision==0.24.1 torchaudio==2.9.1"
-    )
-    .pip_install(
-        "accelerate",
-        "diffusers",
-        "einops",
-        "fastapi[standard]",
-        "huggingface-hub",
-        "PyYAML",
-        "safetensors",
-        "scipy",
-        "sentencepiece",
-        "tqdm",
-        "transformers",
-    )
-    .run_commands(
+        "torch==2.8.* torchvision==0.23.* torchaudio==2.8.*",
         "git clone --depth 1 https://github.com/ernie-research/NAVA.git /opt/NAVA",
-        "pip install wheel",
-        "pip install flash-attn --no-build-isolation",
+        "pip install -e /opt/NAVA",
+        f"pip install '{FLASH_ATTN_WHEEL}'",
+        "python -c \"import flash_attn, torch; "
+        "assert torch.__version__.startswith('2.8.'); "
+        "print('flash-attn', flash_attn.__version__, 'torch', torch.__version__)\"",
     )
     .env(
         {
@@ -63,7 +55,7 @@ runtime = (
     )
 )
 
-web_runtime = modal.Image.debian_slim(python_version="3.11").pip_install(
+web_runtime = modal.Image.debian_slim(python_version="3.10").pip_install(
     "fastapi[standard]"
 )
 huggingface_secret = modal.Secret.from_name("huggingface")
@@ -137,10 +129,12 @@ class NAVA:
             "--config",
             str(
                 NAVA_ROOT
-                / "configs/baseline_t2av_demo_mmdit_no_split_ltx_control_unipc.yaml"
+                / "configs/nava.yaml"
             ),
             "--ckpt",
             str(MODEL_ROOT / "NAVA_fp8.safetensors"),
+            "--weight_dtype",
+            "fp8_e4m3fn",
             "--out_dir",
             str(output_dir),
             "--data_format",
@@ -162,6 +156,14 @@ class NAVA:
             "--save_sample",
             "--gen_turn",
             "1",
+            "--t5_offload",
+            "--vae_tiling",
+            "--vae_tile_size",
+            "22",
+            "40",
+            "--vae_tile_stride",
+            "14",
+            "26",
         ]
         if speaker_wav_base64:
             command.extend(

@@ -144,6 +144,10 @@ test("separates picture and video creation models", async () => {
     new URL("../lib/ai-video-models.ts", import.meta.url),
     "utf8",
   );
+  const navaModal = await readFile(
+    new URL("../modal_nava.py", import.meta.url),
+    "utf8",
+  );
   const pictureDimensions = [
     ...pictureModels.matchAll(/\{\s*width:\s*(\d+),\s*height:\s*(\d+)\s*\}/g),
   ];
@@ -166,7 +170,12 @@ test("separates picture and video creation models", async () => {
   assert.match(source, /Choose and preview a reference image/);
   assert.match(source, /accepts an optional reference image and generates synchronized audio/);
   assert.match(videoModels, /NAVA 6\.3B/);
+  assert.match(navaModal, /torch==2\.8\.\*/);
+  assert.match(navaModal, /flash_attn-2\.8\.3/);
+  assert.match(navaModal, /configs\/nava\.yaml/);
+  assert.match(navaModal, /"--weight_dtype"/);
   assert.match(source, /Reference voice/);
+  assert.doesNotMatch(source, /NAVA Production is staged but not enabled/);
   assert.match(source, /Animate picture/);
   assert.match(source, /referenceMediaId/);
   assert.match(source, /Generation preset/);

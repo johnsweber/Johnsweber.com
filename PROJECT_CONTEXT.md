@@ -229,8 +229,15 @@ five minutes; this is an estimate, not provider telemetry.
     (~10 second) modes at 24 fps. The UI estimates 7 and 12 minutes until real
     anonymous timing data is available.
   - Runtime URL: `NAVA_MODAL_URL`; Modal source is `modal_nava.py`.
-  - No paid NAVA inference is part of validation. Endpoint deployment and a
-    first controlled generation are separate rollout steps.
+  - Its Modal image follows NAVA's supported dependency contract: Python 3.10,
+    CUDA 12.8 PyTorch 2.8, and the matching official FlashAttention 2.8.3
+    binary wheel. NAVA is installed as a package and runs the current
+    `configs/nava.yaml` FP8 single-GPU path, so deployment does not compile
+    FlashAttention from source.
+  - Production submission is enabled after the endpoint image and authenticated
+    health route validate. Deployment validation does not run paid inference;
+    the first submitted Production request performs the model download and
+    allocates the H200.
 
 Picture creation supports local ComfyUI models plus hosted Z-Image:
 
